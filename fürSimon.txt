@@ -1,0 +1,18 @@
+Hier schreibe ich meine Gedankengänge auf
+
+Die Knotenklasse soll mehrere methoden haben, zb für die optimierung nachher eine knoten löschen methode
+ -> Die Knoten würde ich einfach als punkte quasi modellieren mit koordinaten x und z. wenn wir ein knotenobjekt erstellen (also nen knoten xd)
+    wird direkt festgelegt welche koordinaten, ob er aktiv ist, seine Freiheitsgrade und wie viel kraft auf ihn wirkt, das passiert bei der struktur Knotenklasse
+    in dessen methode gitter_erzeugen, wo an jede knoten id (k_id) ein knotenobjekt ins dictionary speicher. 
+
+Die Federklasse ist quasi das Pendant zur Knotenklasse, mit anderen Attributen aber geht auch drum eine Feder dann zu erstellen wenn sie aufgerufen wird.
+ -> Aktuell habe ich beim erstellen eines Federobjekts als übergabe geschrieben, dass die Feder zwei Knoten braucht wo sie zwischen liegt, ihre Steifig-
+    keit, obwohl ich nicht weiß ob das relevant ist und wir da einen fixwert nehmen, weil wir davon ausgehen das der Körper überall gleich steif ist. und ich 
+    leg direkt fest ob eine feder aktiv ist oder nicht, für nachher wenn wir federn entfernen wollen. aber kann sein das wir das auch anders lösen müssen.
+
+Die Strukturklasse baut uns das ganze Gitter dann zusammen aus den Federn und den Knoten. 
+ -> Ich erstell da mal zwei dictionaries für knoten und Federn zum abspeichern und das wir immer die id als Key übergeben. Dann die zwei zähler eben für die id dann. 
+    Für die größe vom Gitter habe ich mal einfach anzahl_x und z gemacht, wo wir die größe bissl einstellen können.
+
+    Methode gitter_erzeugen_knoten
+     -> eigentlich selbsterklärend die funktion, einfach durch x und z iterieren und füllen unser dictionary mit den Knotenobjekten, also quasi unsere Gitterstruktur 
