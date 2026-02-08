@@ -1,4 +1,4 @@
-# Klasse für die Federn 
+# Klasse für die Federn
 
 class Feder:
     def __init__(self, id, knoten_i, knoten_j, steifigkeit, feder_aktiv=True):
