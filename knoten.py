@@ -10,15 +10,15 @@ class Knoten:
         self.z = z
         
         # ob Knoten noch da ist oder nicht (für Optimieren)
-        self.knoten_aktiv = True
+        self.knoten_aktiv = knoten_aktiv
         
         # Freiheitsgrade vom Knoten regulieren
-        self.fix_x = True
-        self.fix_z = True
+        self.fix_x = fix_x
+        self.fix_z = fix_z
         
         # Kraft von 0 bis 100N dann
-        self.kraft_x = 0.0
-        self.Kraft_z = 0.0
+        self.kraft_x = kraft_z
+        self.kraft_z = kraft_x
 
 
     
