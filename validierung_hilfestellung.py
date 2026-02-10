@@ -12,7 +12,7 @@ def test_hilfestellung():
 
     K = s.steifigkeitsmatrix_aufbauen(mapping)
 
-    print("\n === Knoten Reihenfolge ===")
+    print("\n === Knoten Positionen ===")
     for k_id in sorted(s.knoten.keys()):
         k = s.knoten[k_id]
         print(f"Knoten {k_id}: x = {k.x}, z = {k.z}")

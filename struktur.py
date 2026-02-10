@@ -221,7 +221,7 @@ class Struktur:
         ex, ez = e[0], e[1]
 
         k = feder.steifigkeit
-
+        #WICHTIG!!!! muss man sich nochmal anschauen ob dass hier passt und sinn ergibt 
         K_lokal = k * np.array([
             [ex*ex, ex*ez, -ex*ex, -ex*ez],
             [ex*ez, ez*ez, -ex*ez, -ez*ez],
@@ -263,3 +263,44 @@ class Struktur:
                     K_global[dofs[a], dofs[b]] += K_lokal[a, b]
 
         return K_global
+    
+#nun werden hier lager und kräfte definiert und gesetzt um systeme lösen zu können(später gedanken zum auslagern machen, hab hier mal in struktur weiter gearbeitet)
+    #Funktion setzt Lagerbedinungen an einem Knoten, in welche richtung verschiebungen nicht zugelassen werden 
+    def lager_setzen(self, k_id: int, fix_x = False, fix_z = False) -> None: 
+
+        #Kontrolle ob Knoten in dict existiert 
+        if k_id not in self.knoten:
+            raise KeyError(f"Knoten {k_id} existiert nicht!!")
+        
+        k = self.knoten[k_id]
+        k.fix_x = fix_x
+        k.fix_z = fix_z
+
+    #Funktion um eine Kraft an einem Knoten zu setzten
+    def kraft_setzen(self, k_id = int, fx = 0.0, fz = 0.0) -> None: 
+
+        #Kontrolle ob Knoten in dict existiert 
+        if k_id not in self.knoten:
+            raise KeyError(f"Knoten {k_id} existiert nicht!!")
+
+        k = self.knoten[k_id]
+        k.kraft_x = fx
+        k.kraft_z = fz        
+        
+
+    #Funktionen um Lager und Kräfte wieder rückzusetzen/löschen 
+    def lager_loeschen(self, k_id: int) -> None: 
+        self.lager_setzen(k_id, fix_x=False, fix_z=False)
+
+    def kraft_loeschen(self, k_id: int) -> None: 
+        self.kraft_setzen(k_id, fx=0.0, fz=0.0)
+
+    #System wird hier aufgebaut also K * u = F, später dann mit solver gelöst 
+    def system_aufbauen(self): 
+
+        mapping = self.dof_map()
+        K = self.steifigkeitsmatrix_aufbauen(mapping)
+        F = self.kraftvektor_aufbauen(mapping)
+        fixiert = self.fixierte_freiheitsgrade(mapping)
+
+        return K, F, fixiert, mapping 
