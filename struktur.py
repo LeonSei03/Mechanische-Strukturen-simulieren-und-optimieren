@@ -149,7 +149,7 @@ class Struktur:
             mapping[knoten_id] = (freiheitsgrad_index, freiheitsgrad_index + 1) #Tupel
             freiheitsgrad_index += 2 #um zwei erhöhen weil 2 dof 
 
-        return mapping 
+        return mapping
     
     #Funktion zur bestimmung der definierten Freiheitsgrade (Lagerbedingungen), gibt den Knotenindex zurück
     def fixierte_freiheitsgrade(self, dof_mapping):
@@ -204,12 +204,12 @@ class Struktur:
         #Falls länge 0 sicherheit 
         if laenge == 0:
             raise ValueError("Feder hat Länge 0!!")
-        
-        #Einheitsvektor 
+  
+        #Einheitsvektor
         e = np.array([dx / laenge, dz / laenge])
 
-        return e 
-    
+        return e
+
     #Lokale 4x4 Steifigkeitsmatrix einer einzelnen Feder
     def lokale_feder_matrix(self, feder_id):
         
@@ -229,7 +229,7 @@ class Struktur:
             [-ex*ez, -ez*ez, ex*ez, ez*ez]
         ])
 
-        return K_lokal 
+        return K_lokal
 
     def steifigkeitsmatrix_aufbauen(self, dof_mapping):
 
@@ -243,7 +243,7 @@ class Struktur:
 
             feder = self.federn[feder_id]
 
-            #lokale 4x4 matrix bestimmen 
+            #lokale 4x4 matrix bestimmen
             K_lokal = self.lokale_feder_matrix(feder_id)
 
             #zugehörige Knoten 
@@ -279,7 +279,7 @@ class Struktur:
     #Funktion um eine Kraft an einem Knoten zu setzten
     def kraft_setzen(self, k_id = int, fx = 0.0, fz = 0.0) -> None: 
 
-        #Kontrolle ob Knoten in dict existiert 
+        #Kontrolle ob Knoten in dict existiert
         if k_id not in self.knoten:
             raise KeyError(f"Knoten {k_id} existiert nicht!!")
 
@@ -295,12 +295,12 @@ class Struktur:
     def kraft_loeschen(self, k_id: int) -> None: 
         self.kraft_setzen(k_id, fx=0.0, fz=0.0)
 
-    #System wird hier aufgebaut also K * u = F, später dann mit solver gelöst 
-    def system_aufbauen(self): 
+    #System wird hier aufgebaut also K * u = F, später dann mit solver gelöst
+    def system_aufbauen(self):
 
         mapping = self.dof_map()
         K = self.steifigkeitsmatrix_aufbauen(mapping)
         F = self.kraftvektor_aufbauen(mapping)
         fixiert = self.fixierte_freiheitsgrade(mapping)
 
-        return K, F, fixiert, mapping 
+        return K, F, fixiert, mapping
