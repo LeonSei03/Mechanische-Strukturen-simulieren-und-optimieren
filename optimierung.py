@@ -6,18 +6,23 @@ class TopologieOptimierer:
     def __init__(self, struktur):
         self.struktur: Struktur = struktur
 
-    # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung
+    # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
+    # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
     def berechne_startverschiebung(self):
+        # GLS aufbauen und lösen
         K, F, fixiert, mapping = self.struktur.system_aufbauen()
         u = solve(K.copy(), F, fixiert)
 
         if u is None:
             raise RuntimeError("Startstruktur ist nicht lösbar!!")
 
+        # max Verschiebung
         max_u = float(np.max(np.abs(u)))
         return max_u
 
+    # Funktion zum berechnen der Energie jeder aktiver Feder
     def feder_energien_berechnen(self):
+        #GLS aufbauen und lösen
         K, F, fixiert, mapping = self.struktur.system_aufbauen()
         u = solve(K.copy(), F, fixiert)
 
@@ -36,8 +41,10 @@ class TopologieOptimierer:
             ix, iz = mapping[feder.knoten_i]
             jx, jz = mapping[feder.knoten_j]
 
+            # Verschiebungsvektor (local)
             u_local = np.array([u[ix], u[iz], u[jx], u[jz]], dtype=float)
 
+            # Steifigkeitsmatrix (local)
             K_local = self.struktur.lokale_feder_matrix(f_id)
 
             # Energie berechnen
@@ -46,6 +53,7 @@ class TopologieOptimierer:
         
         return energien, u, mapping, (K, F, fixiert)
 
+    # Energiebasierte Scores berechnen für alle aktiven Knoten indem jeder Endknoten die hälfte der Energie bekommt
     def knoten_scores_berechnen(self):
         out = self.feder_energien_berechnen()
         
@@ -54,6 +62,7 @@ class TopologieOptimierer:
         
         energien, u, mapping, _ = out
 
+        # scores für jeden aktiven Knoten initialisieren
         scores = {k_id: 0.0 for k_id in mapping.keys()}
 
         # jeder Feder die halbe Energie geben
@@ -86,34 +95,52 @@ class TopologieOptimierer:
     # dann probieren wir 4 knoten zu löschen usw -> adaptiv
     def optimierungs_schritt_adaptiv_rollback(self, max_entfernen, u_max=None):
         print("max_entfernen =", max_entfernen)
+        
+        # knotenscores berechnen basiert auf energie der federn
         scores, energien, u = self.knoten_scores_berechnen()
 
         if scores is None:
             return False, 0, [], None, None
         
+        # kleine debug ausgabe
         print("Kandidaten total:", len([k for k in scores.keys() if not self.struktur.knoten_geschuetzt(k)]))
 
+        # adaptives entfernen der knoten
         for n in range(max_entfernen, 0, -1):
+
+            # knoten mit niedrigstem score aussuchen 
             entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n)
             print("Versuche n =", n, "-> bekomme", len(entfernte_ids))
 
             if not entfernte_ids:
                 continue
-
+            
+            # falls Rollback
             snapshot = self.zustand_sichern()
 
+            # Knoten entfernen
             for k_id in entfernte_ids:
                 self.struktur.knoten_entfernen(k_id)
         
+            # Bedingung prüfen ob lastknoten mit lagerknoten verbunden ist, sonst Rollback
+            if not self.struktur.ist_verbunden_last_zu_lager():
+               # print("Rollback: Connectivity verletzt (Last nicht mehr mit Lager verbunden).") # debug ausgabe
+                self.zustand_wiederherstellen(snapshot)
+                continue
+
+            # system neu aufbauen und lösen
             K, F, fixiert, mapping = self.struktur.system_aufbauen()
             u_test = solve(K.copy(), F, fixiert)
 
+            # falls Matrix singulär ist, passiert Rollback
             if u_test is None:
                 self.zustand_wiederherstellen(snapshot)
                 continue
 
             # max Verschiebung darf nicht zu groß sein
             max_u_val = float(np.max(np.abs(u_test)))
+
+            # wenn max Verschiebung zu groß ist Rollback
             if u_max is not None and max_u_val > u_max:
                 self.zustand_wiederherstellen(snapshot)
                 continue
@@ -131,7 +158,7 @@ class TopologieOptimierer:
         start = len(self.struktur.aktive_knoten_ids())
         historie = []
         
-        # Startverschiebung bestimmen
+        # maximale zulässige Verschiebung bestimmen
         u_start_max = self.berechne_startverschiebung()
         u_max = u_faktor * u_start_max
 
@@ -139,13 +166,16 @@ class TopologieOptimierer:
             aktiv = len(self.struktur.aktive_knoten_ids())
             anteil = aktiv / start
 
+            # Zielmaterial erreicht, abbrechen
             if anteil <= ziel_anteil:
                 break
             
+            # einen adaptiven optimierungsschritt ausführen 
             ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=max_entfernen_pro_iter, u_max=u_max)
             
             print("ITERATION", it)
             
+            # Verlaufsdaten abspeichern
             historie.append({
                 "iteration": it,
                 "aktive_knoten": aktiv,
@@ -157,7 +187,7 @@ class TopologieOptimierer:
                 "u_max_limit": u_max
             })
 
-            # zB solver fail
+            # abbrechen falls kein fortschritt möglich
             if not ok or entfernt_n == 0:
                 break
 

@@ -87,13 +87,18 @@ def test_optimierung():
     # Optimierer erzeugen
     opt = TopologieOptimierer(s)
 
+    print("Lager:", s.lager_knoten_id())
+    print("Last:", s.last_knoten_id())
+    print("Connected:", s.ist_verbunden_last_zu_lager())
+
     print("Start aktive Knoten:", len(s.aktive_knoten_ids()))
 
     # Optimierung starten
     historie = opt.optimierung(
         ziel_anteil=0.25,
         max_iter=20,
-        max_entfernen_pro_iter=3
+        max_entfernen_pro_iter=10,
+        u_faktor=100.0
     )
 
     print("\n--- Verlauf ---")
@@ -115,6 +120,9 @@ def test_optimierung():
         )
 
     print("\nEnde aktive Knoten:", len(s.aktive_knoten_ids()))
+
+
+
 if __name__ == "__main__":
     #======================Kannst du dir beide ausführen Lassen um zu schauen was rauskommt und ob alles passt für dich!!!================
     
