@@ -268,7 +268,7 @@ class Struktur:
     #Funktion setzt Lagerbedinungen an einem Knoten, in welche richtung verschiebungen nicht zugelassen werden 
     def lager_setzen(self, k_id: int, fix_x = False, fix_z = False) -> None: 
 
-        #Kontrolle ob Knoten in dict existiert 
+        #Kontrolle ob Knoten in dict existiert
         if k_id not in self.knoten:
             raise KeyError(f"Knoten {k_id} existiert nicht!!")
         
@@ -285,7 +285,7 @@ class Struktur:
 
         k = self.knoten[k_id]
         k.kraft_x = fx
-        k.kraft_z = fz        
+        k.kraft_z = fz
         
 
     #Funktionen um Lager und Kräfte wieder rückzusetzen/löschen 
@@ -304,3 +304,80 @@ class Struktur:
         fixiert = self.fixierte_freiheitsgrade(mapping)
 
         return K, F, fixiert, mapping
+    
+    # Funktion um die Knoten ID's von den Lagern zurückzugeben
+    def lager_knoten_id(self):
+        return [
+            k_id for k_id, k in self.knoten.items() if k.knoten_aktiv and (k.fix_x or k.fix_z)
+        ]
+    
+    # Funktion um die Knoten ID's von den Knoten auf welche die Last direkt wirkt
+    def last_knoten_id(self):
+        return [
+            k_id for k_id, k in self.knoten.items() if k.knoten_aktiv and (k.kraft_x != 0.0 or k.kraft_z != 0.0)
+        ]
+    
+    # Funktion die eine Liste baut aus aktiven verbundenen Knoten und Federn
+    def nachbarschaft(self):
+        aktive_knoten = set(self.aktive_knoten_ids())
+
+        # für jeden aktiven Knoten eine leere Nachbarschaftsliste anlegen
+        adj = {k_id: [] for k_id in aktive_knoten}
+
+        # über alle aktiven Federn iterieren
+        for f_id in self.aktive_federn_ids():
+            f = self.federn[f_id]
+            
+            # endknoten der Feder abspeichern
+            i = f.knoten_i
+            j = f.knoten_j
+
+            # wenn beide endknoten aktiv sind, kommen sie in die Liste
+            if i in aktive_knoten and j in aktive_knoten:
+                adj[i].append(j)
+                adj[j].append(i)
+        
+        return adj
+    
+    # Funktion welche uns sagt ob mindestens ein aktiver Lastknoten über aktive Federn mit mindestens einem aktiven Lagerknotne verbunden ist
+    def ist_verbunden_last_zu_lager(self):
+        # aktuelle Last und lagerknoten bestimmen
+        last_ids = self.last_knoten_id()
+        lager_ids = set(self.lager_knoten_id())
+
+        # falls keine Last definiert ist
+        if not last_ids:
+            return True
+        
+        # falls keine Lager definiert sind
+        if not lager_ids:
+            return False
+        
+        adj = self.nachbarschaft()
+
+        # Breitensuche für jeden Lastknoten machen
+        for start_id in last_ids:
+            # falls Lastknoten nicht mehr aktiv oder keine Nachbarn hat
+            if start_id not in adj:
+                continue
+
+            visited = {start_id}
+            queue = [start_id]
+
+            while queue:
+                # nächsten Knoten aus queue nehmen
+                v = queue.pop(0)
+
+                # gucken ob Lager erreicht wird
+                if v in lager_ids:
+                    return True
+                
+                # alle direkten Nachbarn untersuchen
+                for nb in adj.get(v, []):
+
+                    # nur weiter wenn dieser knoten noch nicht besucht wurde
+                    if nb not in visited:
+                        visited.add(nb)
+                        queue.append(nb)
+            
+        return False
