@@ -381,3 +381,24 @@ class Struktur:
                         queue.append(nb)
             
         return False
+    
+    # Funktion um die Aktiven Knoten Koordinaten zu speichern, für Plot
+    def koordinaten_knoten(struktur):
+        xs = []
+        zs = []
+
+        for k_id in struktur.aktive_knoten_ids():
+            k = struktur.knoten[k_id]
+            xs.append(k.x)
+            zs.append(k.z)
+
+        return xs, zs
+
+    # Funktion welche aktive Knotenkoordinaten + Verschiebungen zurückgibt
+    def koordinaten_knoten_mit_verschiebung(struktur, u, mapping, skalierung):
+        xs = []
+        zs = []
+
+        for k_id in mapping.keys():
+            k = struktur.knoten[k_id]
+            
