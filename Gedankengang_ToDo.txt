@@ -16,3 +16,7 @@ Die Strukturklasse baut uns das ganze Gitter dann zusammen aus den Federn und de
 
     Methode gitter_erzeugen_knoten
      -> eigentlich selbsterklärend die funktion, einfach durch x und z iterieren und füllen unser dictionary mit den Knotenobjekten, also quasi unsere Gitterstruktur 
+
+Für die UI:
+ -> Funktionen für alle Knoten koordinaten (koordinaten_knoten)
+ -> FUnktion für alle verschobenen Knotenkoordinaten, also ursprüngliche Pos + u, evtl. auch skalieren, weil verschiebungen sehr klein sind
