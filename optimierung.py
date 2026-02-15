@@ -154,7 +154,7 @@ class TopologieOptimierer:
         return False, 0, [], None, None
 
     # Funktion für die gesamte Optimierung
-    def optimierung(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=3.0):
+    def optimierung(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5):
         start = len(self.struktur.aktive_knoten_ids())
         historie = []
         
