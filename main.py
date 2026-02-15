@@ -6,6 +6,9 @@ from validierung_hilfestellung import test_hilfestellung
 from solver import solve
 import numpy as np
 from optimierung import TopologieOptimierer
+import matplotlib
+matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
 
 # Von hier alles aufrufen und ausführen
 def main():
@@ -73,15 +76,34 @@ def test_optimierung():
 
     # Struktur aufbauen
     s = Struktur()
-    s.gitter_erzeugen_knoten(10, 5, 1.0, 1.0)
+    s.gitter_erzeugen_knoten(30, 15, 1.0, 1.0)
     s.gitter_erzeugen_federn(1.0, 1.0, 1.0 / np.sqrt(2))
 
+    nx = 30
+    nz = 15
+
+    
     # Lager + Last setzen
     # Beispiel: links eingespannt, rechts Last
-    s.lager_setzen(0, True, True)
-    s.lager_setzen(1, False, True)
+    k_id_lager1 = s.knoten_id(0, 0)
+    k_id_lager2 = s.knoten_id(29, 0)
 
-    last_knoten = s.knoten_id(5, 2)
+    s.lager_setzen(k_id_lager1, True, True)
+    s.lager_setzen(k_id_lager2, False, True)
+
+    '''
+    # ganze Linke Spalte als Lager
+    for j in range(nz):
+        k_id = s.knoten_id(0, j)
+        s.lager_setzen(k_id, True, True)
+    
+    # ganze Rechte Spalte als Lager
+    for j in range(nz):
+        k_id = s.knoten_id(nx-1, j)
+        s.lager_setzen(k_id, False, True)
+    '''
+         
+    last_knoten = s.knoten_id(15, 14)
     s.kraft_setzen(last_knoten, fx=0, fz=-10)
 
     # Optimierer erzeugen
@@ -95,10 +117,10 @@ def test_optimierung():
 
     # Optimierung starten
     historie = opt.optimierung(
-        ziel_anteil=0.25,
+        ziel_anteil=0.50,
         max_iter=20,
         max_entfernen_pro_iter=10,
-        u_faktor=100.0
+        u_faktor=1.5
     )
 
     print("\n--- Verlauf ---")
@@ -118,8 +140,32 @@ def test_optimierung():
             f"max_u: {max_u_str} | "
             f"Eges: {energie_str}"
         )
-
     print("\nEnde aktive Knoten:", len(s.aktive_knoten_ids()))
+
+    K, F, fixiert, mapping = s.system_aufbauen()
+    u = solve(K.copy(), F, fixiert)
+    
+    xs, zs = s.koordinaten_knoten()
+    xs_d, zs_d = s.koordinaten_knoten_mit_verschiebung(u, mapping, skalierung=0.025)
+
+    plt.figure()
+    plt.scatter(xs, zs)
+    plt.gca().set_aspect("equal", adjustable="box")
+    plt.title("Struktur (undeformed)")
+    plt.xlabel("x"); plt.ylabel("z")
+    print("Plot wird jetzt angezeigt...")
+    plt.show()
+    print("Nach dem Plot")
+
+    plt.figure()
+    plt.scatter(xs, zs, label="undeformed")
+    plt.scatter(xs_d, zs_d, label="deformed")
+    plt.gca().set_aspect("equal", adjustable="box")
+    plt.legend()
+    plt.title("Verformung (Punkte)")
+    plt.xlabel("x"); plt.ylabel("z")
+    plt.show()
+ 
 
 
 
