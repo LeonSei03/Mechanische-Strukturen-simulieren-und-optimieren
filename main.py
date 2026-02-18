@@ -82,7 +82,6 @@ def test_optimierung():
     nx = 30
     nz = 15
 
-    
     # Lager + Last setzen
     # Beispiel: links eingespannt, rechts Last
     k_id_lager1 = s.knoten_id(0, 0)
@@ -175,4 +174,4 @@ if __name__ == "__main__":
     #test_hilfestellung()
     #test_lager_kraft_system()
     #test_energien_scores()
-    test_optimierung()
+    #test_optimierung()
