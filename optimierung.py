@@ -108,7 +108,7 @@ class TopologieOptimierer:
         # adaptives entfernen der knoten
         for n in range(max_entfernen, 0, -1):
 
-            # knoten mit niedrigstem score aussuchen 
+            # knoten mit niedrigstem score aussuchen
             entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n)
             print("Versuche n =", n, "-> bekomme", len(entfernte_ids))
 
