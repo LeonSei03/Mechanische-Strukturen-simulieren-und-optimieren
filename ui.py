@@ -7,7 +7,9 @@ from ui_logik import (
     plot_struktur,
     loese_aktuelle_struktur,
     entwurf_auf_struktur_anwenden,
-    reset_ui_state_bei_neuer_struktur
+    reset_ui_state_bei_neuer_struktur,
+    checkpoint_speichern,
+    checkpoint_laden
 )
 
 st.set_page_config(page_title="Balken Optimierung", layout="wide")
@@ -44,6 +46,19 @@ if "ausgewaehlter_knoten_id" not in st.session_state:
 
 if "last_knoten_id" not in st.session_state:
     st.session_state.last_knoten_id = None 
+
+# sessionstates für optimierung
+if "optimierer" not in st.session_state:
+    st.session_state.optimierer = None
+
+if "optimierung_laeuft" not in st.session_state:
+    st.session_state.optimierung_laeuft = False
+
+if "stop_angefordert" not in st.session_state:
+    st.session_state.stop_angefordert = False
+
+if "checkpoint_pfad" not in st.session_state:
+    st.session_state.checkpoint_pfad = None
 
 
 # Seitenleiste und alle Parameter die wir brauchen abfragen und als FORM, damit änderungen erst bei klick übernommen werden 
@@ -245,7 +260,6 @@ with tab_solve:
             st.success("Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
             st.rerun()
 
-# Tab 4 Optimierung 
 # Tab 4 Optimierung
 with tab_optimierung:
     st.subheader("Topologieoptimierung (Masse reduzieren)")
@@ -267,30 +281,178 @@ with tab_optimierung:
             0.1, 200.0, 3.0, 0.1
         )
 
-        opt_start = st.form_submit_button("Optimierung starten")
+        start_neu = st.form_submit_button("Optimierung starten")
 
-    if opt_start:
-        # Optional: Startmasse einmal festhalten, falls noch nicht gesetzt
-        if "start_masse" not in st.session_state or st.session_state.start_masse is None:
-            st.session_state.start_masse = len(st.session_state.struktur.aktive_knoten_ids())
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
 
+    with col1:
+        weiter = st.button("Weiter (1 Schritt)", use_container_width=True)
+
+    # das man komplett einmal Optimieren kann in schnell 
+    with col2:
+        schnell_durchlaufen = st.button("Optimierung komplett durchlaufen (schnell, nicht stoppbar)", use_container_width=True)
+
+    with col3:
+        auto_weiter = st.button("Auto-Weiter", use_container_width=True)
+
+    with col4:
+        stop = st.button("Stop", use_container_width=True)
+
+    with col5:
+        speichern = st.button("Speichern", use_container_width=True)
+
+    with col6:
+        laden = st.button("Laden / Fortsetzen", use_container_width=True)
+
+    if start_neu:
+        # neuer optimierer mit aktueller Struktur erzeugen
         opt = TopologieOptimierer(st.session_state.struktur)
 
-        historie = opt.optimierung(
+        # Parameter setzen und Verschiebungsgrenze berechnen
+        opt.optimierung_initialisieren(
             ziel_anteil=float(ziel_anteil_opt),
             max_iter=int(max_iter_opt),
             max_entfernen_pro_iter=int(max_entfernen_pro_iter_opt),
             u_faktor=float(u_faktor_opt),
         )
 
-        st.session_state.historie = historie
+        # optimierer wird im Sessionstate gespeichert
+        st.session_state.optimierer = opt
+        st.session_state.historie = opt.verlauf
+        st.session_state.optimierung_laeuft = False
+        st.session_state.stop_angefordert = False
 
-        # Nach Optimierung: Ansicht soll UNDEFORMIERT die optimierte Struktur zeigen
+        # Ansicht auf undeformiert setzen
         st.session_state.u = None
         st.session_state.mapping = None
 
-        st.success("Optimierung abgeschlossen! Ergebnis unten (undeformiert) und in 'Ansicht'.")
+        st.success("Optimierung initialisiert. Du kannst jetzt Schrittweise laufen lassen.")
         st.rerun()
+    
+    # zwischen zwei Iterationen greift
+    if stop: 
+        st.session_state.stop_angefordert = True
+        st.session_state.optimierung_laeuft = False
+        st.info("Stop angefordert. Optimierung hält nach dem aktuellen Schritt an.")
+        st.rerun()
+
+    # checkpoint abspeichern
+    if speichern:
+        if st.session_state.optimierer is None:
+            st.warning("Kein Optimierungslauf vorhanden!!")
+        else:
+            # gesamten Zustand abspeichern
+            zustand = st.session_state.optimierer.zustand_exportieren()
+            
+            # mit Pickle abspeichern
+            pfad = checkpoint_speichern(zustand)
+
+            # Pfad im sessionstate merken
+            st.session_state.checkpoint_pfad = pfad
+            st.success(f"Checkpoint gespeichert: {pfad}")
+
+    # Checkpoint ladne und mit optimierung fortsetzen
+    if laden: 
+        if not st.session_state.checkpoint_pfad:
+            st.warning("Kein Checkpoint-Pfad bekannt. Speichere zuerst oder trage einen Pfad ein!!")
+        else:
+            # checkpoint laden
+            daten = checkpoint_laden(st.session_state.checkpoint_pfad)
+
+            # optimierer neu erzeugen
+            opt = TopologieOptimierer(daten["struktur"])
+            # Zustand holen 
+            opt.zustand_importieren(daten)
+
+            # sessionstates aktualisieren
+            st.session_state.optimierer = opt
+            st.session_state.struktur = opt.struktur
+            st.session_state.historie = opt.verlauf
+
+            st.session_state.optimierung_laeuft = False
+            st.session_state.stop_angefordert = False
+
+            # Ansicht zurücksetzen
+            st.session_state.u = None
+            st.session_state.mapping = None
+
+            st.success("Checkpoint geladen. Du kannst jetzt weiterlaufen.")
+            st.rerun()
+
+    if schnell_durchlaufen:
+        if st.session_state.optimierer is None:
+            st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'.")
+        else:
+            # Interaktiven Lauf deaktivieren
+            st.session_state.optimierung_laeuft = False
+            st.session_state.stop_angefordert = False
+
+            # Optimierung komplett durchlaufen (nicht stoppbar)
+            while not st.session_state.optimierer.optimierung_beendet:
+                st.session_state.optimierer.optimierung_schritt()
+
+            # UI aktualisieren
+            st.session_state.historie = st.session_state.optimierer.verlauf
+            st.session_state.struktur = st.session_state.optimierer.struktur
+            st.session_state.u = None
+            st.session_state.mapping = None
+
+            st.success(
+                f"Optimierung (Schnellmodus) beendet: "
+                f"{st.session_state.optimierer.abbruch_grund}"
+            )
+
+            st.rerun()
+
+
+    # einzelnen Optimierungsschritt durchführen
+    if weiter:
+        if st.session_state.optimierer is None:
+            st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'!!")
+        else:
+            # Nur ausführen wenn noch nicht beendet
+            if not st.session_state.optimierer.optimierung_beendet:
+                st.session_state.optimierer.optimierung_schritt()
+
+            # Ui zustände aktualisieren
+            st.session_state.historie = st.session_state.optimierer.verlauf
+            st.session_state.struktur = st.session_state.optimierer.struktur
+            
+            # Ansicht undeformiert halten
+            st.session_state.u = None
+            st.session_state.mapping = None
+            st.rerun() 
+
+    if auto_weiter:
+        if st.session_state.optimierer is None:
+            st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'!!")
+        else:
+            st.session_state.optimierung_laeuft = True
+            st.session_state.stop_angefordert = False
+            st.rerun()
+
+    # wenn auto_lauf aktiv ist, dann pro rerun nur einen schritt
+    if st.session_state.optimierung_laeuft and st.session_state.optimierer is not None:
+        if st.session_state.stop_angefordert:
+            st.session_state.optimierung_laeuft = False
+        else:
+            if not st.session_state.optimierer.optimierung_beendet:
+                st.session_state.optimierer.optimierung_schritt()
+
+            st.session_state.historie = st.session_state.optimierer.verlauf
+            st.session_state.struktur = st.session_state.optimierer.struktur
+
+            st.session_state.u = None
+            st.session_state.mapping = None
+
+            # Fertig?
+            if st.session_state.optimierer.optimierung_beendet:
+                st.session_state.optimierung_laeuft = False
+                st.success(f"Optimierung beendet: {st.session_state.optimierer.abbruch_grund}")
+            else:
+                # wichtig: UI bleibt responsive, weil jeder Rerun nur 1 Schritt macht
+                st.rerun()
+
 
     # Ergebnisplot (undeformiert) im Optimierungs-Tab anzeigen
     if st.session_state.get("historie") is not None:
@@ -306,3 +468,4 @@ with tab_optimierung:
             highlight_knoten_id=None,
         )
         st.pyplot(fig_opt, use_container_width=True)
+

@@ -4,6 +4,9 @@ from optimierung import TopologieOptimierer
 import numpy as np
 from solver import solve
 import matplotlib.pyplot as plt
+import os
+import pickle
+from datetime import datetime
 
 # ToDo's für streamlit
 # schauen ob lagerung richtig hinhaut, plot sieht aus als wenns passt, aber iwi auch komisch
@@ -247,3 +250,22 @@ def reset_ui_state_bei_neuer_struktur():
     st.session_state.entwurf_lager = {}
     st.session_state.u = None
     st.session_state.mapping = None
+
+
+def checkpoint_speichern(zustand: dict, ordner: str = "checkpoints", dateiname: str | None = None):
+    os.makedirs(ordner, exist_ok=True)
+
+    if dateiname is None:
+        zeit = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dateiname = f"checkpoint_{zeit}.pkl"
+
+    pfad = os.path.join(ordner, dateiname)
+
+    with open(pfad, "wb") as f:
+        pickle.dump(zustand, f)
+
+    return pfad
+
+def checkpoint_laden(pfad: str) -> dict:
+    with open(pfad, "rb") as f:
+        return pickle.load(f)
