@@ -6,6 +6,23 @@ class TopologieOptimierer:
     def __init__(self, struktur):
         self.struktur: Struktur = struktur
 
+        # für step/ fortsetzen
+        self.optimierung_initialisiert = False
+        self.optimierung_beendet = False
+        self.abbruch_grund = None
+
+        self.start_knotenanzahl = None
+        self.ziel_materialanteil = None
+        self.max_iterationen = None
+        self.max_entfernen_pro_iteration = None
+        self.u_faktor = None
+
+        self.u_start_max = None
+        self.u_max_grenze = None
+
+        self.aktuelle_iteration = 0
+        self.verlauf = []
+
     # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
     # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
     def berechne_startverschiebung(self):
@@ -152,51 +169,6 @@ class TopologieOptimierer:
             return True, len(entfernte_ids), entfernte_ids, max_u_val, gesamtenergie
 
         return False, 0, [], None, None
-
-    # Funktion für die gesamte Optimierung
-    def optimierung(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5):
-        start = len(self.struktur.aktive_knoten_ids())
-        historie = []
-        
-        # maximale zulässige Verschiebung bestimmen
-        u_start_max = self.berechne_startverschiebung()
-        u_max = u_faktor * u_start_max
-
-        for it in range(max_iter):
-            aktiv = len(self.struktur.aktive_knoten_ids())
-            anteil = aktiv / start
-
-            # Zielmaterial erreicht, abbrechen
-            if anteil <= ziel_anteil:
-                break
-            
-            # einen adaptiven optimierungsschritt ausführen 
-            ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=max_entfernen_pro_iter, u_max=u_max)
-            
-            print("ITERATION", it)
-            
-            # Verlaufsdaten abspeichern
-            historie.append({
-                "iteration": it,
-                "aktive_knoten": aktiv,
-                "material_anteil": anteil,
-                "entfernt": entfernt_n,
-                "entfernte_ids": entfernte_ids,
-                "max_u": max_u,
-                "gesamtenergie": gesamtenergie,
-                "u_max_limit": u_max
-            })
-
-            # abbrechen falls kein fortschritt möglich
-            if not ok or entfernt_n == 0:
-                break
-
-        return historie
-    
-    # Funktion um entfernte Knoten "wiederherzustellen" falls diese die Struktur kaputt machen
-    # Problem wenn wir zu viel entfernen, kann unsere Steifigkeitsmatrix singulär werden
-    # das bedeutet unser System hat zu viele Freiheitsgrade und verschiebt sich unter Last, anstatt die kraft in Energie umzuwandeln
-    # -> solver kann auch nicht mehr lösen
     
     # aktuellen Zustand speichern
     def zustand_sichern(self):
@@ -218,7 +190,126 @@ class TopologieOptimierer:
         for f_id, feder in self.struktur.federn.items():
             feder.feder_aktiv = (f_id in aktive_federn)
 
+    # Funktion welche uns einen neuen optimierungslauf initialisiert
+    def optimierung_initialisieren(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5):
+        # Anzahl aktiver Knoten am Anfang
+        self.start_knotenanzahl = len(self.struktur.aktive_knoten_ids())
 
+        # Parameter
+        self.ziel_materialanteil = ziel_anteil
+        self.max_iterationen = max_iter
+        self.max_entfernen_pro_iteration = max_entfernen_pro_iter
+        self.u_faktor = u_faktor
+
+        # Verschiebungsgrenze (wie oben)
+        self.u_start_max = self.berechne_startverschiebung()
+        self.u_max_grenze = self.u_faktor * self.u_start_max
+
+        # Iteration zurücksetzen
+        self.aktuelle_iteration = 0
+        self.verlauf = []
+
+        # Steuerflags setzen
+        self.optimierung_beendet = False
+        self.abbruch_grund = None
+        self.optimierung_initialisiert = True
+
+    # genau eine optimierung ausführen und speichern
+    def optimierung_schritt(self):
+        
+        if not self.optimierung_initialisiert:
+            raise RuntimeError("Optimierung nicht initalisiert!!")
+        
+        if self.optimierung_beendet:
+            return False
+        
+        # aktuellen Materialanteil besitmmen
+        aktive_knoten = len(self.struktur.aktive_knoten_ids())
+        materialanteil = aktive_knoten / self.start_knotenanzahl
+
+        # wenn Zielmaterial erreichr wird
+        if materialanteil <= self.ziel_materialanteil:
+            self.optimierung_beendet = True
+            self.abbruch_grund = "Ziel Materialanteil erreicht"
+            return False
+        
+        # wenn max iterationen erreich sind
+        if self.aktuelle_iteration >= self.max_iterationen:
+            self.optimierung_beendet = True
+            self.abbruch_grund = "Max Iterationszahl erreicht"
+            return False
+        
+        # Funktion "optimierungs_schritt_adaptiv_rollback" aufrufen und durchführen
+        ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=self.max_entfernen_pro_iteration, u_max=self.u_max_grenze)
+
+        # Verlauf speichern
+        self.verlauf.append({
+            "iteration": self.aktuelle_iteration,
+            "aktive_knoten": aktive_knoten,
+            "material_anteil": materialanteil,
+            "entfernt": entfernt_n,
+            "entfernte_ids": entfernte_ids,
+            "max_u": max_u,
+            "gesamtenergie": gesamtenergie,
+            "u_max_grenze": self.u_max_grenze
+        })
+
+        self.aktuelle_iteration += 1
+
+        # falls kein Fortschnritt mehr möglich ist
+        if not ok or entfernt_n == 0:
+            self.optimierung_beendet = True
+            self.abbruch_grund = "Kein weiterer Fortschritt mehr möglich"
+            return False
+        
+        return True
+    
+    # Funktion welchen uns den aktuellen optimierungszustand speichert
+    def zustand_exportieren(self):
+        return {
+            "struktur": self.struktur,
+            "optimierung": {
+                "optimierung_initialisiert": self.optimierung_initialisiert,
+                "optimierung_beendet": self.optimierung_beendet,
+                "abbruch_grund": self.abbruch_grund,
+                "start_knotenanzahl": self.start_knotenanzahl,
+                "ziel_materialanteil": self.ziel_materialanteil,
+                "max_iterationen": self.max_iterationen,
+                "max_entfernen_pro_iteration": self.max_entfernen_pro_iteration,
+                "u_faktor": self.u_faktor,
+                "u_start_max": self.u_start_max,
+                "u_max_grenze": self.u_max_grenze,
+                "aktuelle_iteration": self.aktuelle_iteration,
+                "verlauf": self.verlauf
+            }
+        }
+    
+    # Funktion welche uns einen gespeicherten zustand wieder gibt
+    def zustand_importieren(self, daten):
+        self.struktur = daten["struktur"]
+        opt = daten["optimierung"]
+
+        self.optimierung_initialisiert = opt["optimierung_initialisiert"]
+        self.optimierung_beendet = opt["optimierung_beendet"]
+        self.abbruch_grund = opt["abbruch_grund"]
+        self.start_knotenanzahl = opt["start_knotenanzahl"]
+        self.ziel_materialanteil = opt["ziel_materialanteil"]
+        self.max_iterationen = opt["max_iterationen"]
+        self.max_entfernen_pro_iteration = opt["max_entfernen_pro_iteration"]
+        self.u_faktor = opt["u_faktor"]
+        self.u_start_max = opt["u_start_max"]
+        self.u_max_grenze = opt["u_max_grenze"]
+        self.aktuelle_iteration = opt["aktuelle_iteration"]
+        self.verlauf = opt["verlauf"]
+
+
+    def optimierung(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5):
+        
+        self.optimierung_initialisieren(ziel_anteil, max_iter, max_entfernen_pro_iter, u_faktor)
+        while not self.optimierung_beendet:
+            self.optimierung_schritt()
+
+        return self.verlauf
     
 
 
