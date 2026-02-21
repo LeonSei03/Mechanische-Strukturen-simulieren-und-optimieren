@@ -60,6 +60,21 @@ if "stop_angefordert" not in st.session_state:
 if "checkpoint_pfad" not in st.session_state:
     st.session_state.checkpoint_pfad = None
 
+#Damit die Flash-Messages angezeigt werden überall 
+if "flash" not in st.session_state:
+    st.session_state.flash = [] #Liste für (type und text)
+
+def flash(type: str, text: str):
+    #type sind success, info, warning und error 
+    st.session_state.flash.append((type, text))
+
+def show_flash():
+    if st.session_state.flash:
+        for type, text in st.session_state.flash:
+            getattr(st, type)(text)
+        st.session_state.flash.clear()
+
+show_flash()
 
 # Seitenleiste und alle Parameter die wir brauchen abfragen und als FORM, damit änderungen erst bei klick übernommen werden 
 with st.sidebar.form("parameter_form"):
@@ -70,13 +85,13 @@ with st.sidebar.form("parameter_form"):
     dx = st.number_input("Abstand x (dx)", 0.1, 10.0, 1.0)
     dz = st.number_input("Abstand z (dz)", 0.1, 10.0, 1.0)
 
-    lager_modus = st.selectbox("Lager (Start)", ["Knotenspalte", "Knoten einzeln"])
+    lager_modus = st.selectbox("Lager (Start)", ["Knoten einzeln", "Knotenspalte"])
 
     st.markdown("---")
     st.header("Darstellung")
 
-    skalierung = st.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 0.0, 25.0, 1.0)
-    federn_anzeigen = st.checkbox("Federn anzeigen", value=True)
+    skalierung = st.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 1.0, 25.0, 1.0)
+    federn_anzeigen = st.checkbox("Federn anzeigen", value=False)
     knoten_ids_anzeigen = st.checkbox("Knoten-Ids anzeigen (debug)", value=False)  
 
     uebernehmen = st.form_submit_button("Übernehmen (Struktur neu erzeugen)")
@@ -113,8 +128,8 @@ with tab_ansicht:
     col_a.metric("Startmasse (kg)", start_masse)
     col_b.metric("Aktuelle Masse (kg)", aktuelle_masse)
 
-    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, highlight_knoten_id=st.session_state
-                        .kraft_knoten_id) 
+    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, 
+                        highlight_knoten_id=st.session_state.kraft_knoten_id) 
     
     st.pyplot(fig, use_container_width=True)
 
@@ -149,8 +164,8 @@ with tab_randbedingungen:
                 k = struktur.knoten[kraft_knoten]
                 fx0, fz0 = float(k.kraft_x), float(k.kraft_z)
 
-            fx = st.number_input("Fx", value=float(fx0), key=f"fx_entwurf_{kraft_knoten}")
-            fz = st.number_input("Fz", value=float(fz0), key=f"fz_entwurf_{kraft_knoten}")
+            fx = st.number_input("Fx", value=float(fx0))#, key=f"fx_entwurf_{kraft_knoten}")
+            fz = st.number_input("Fz", value=float(fz0))#, key=f"fz_entwurf_{kraft_knoten}")
             
             c1, c2 = st.columns(2)
             speichern_kraft = c1.form_submit_button("In Entwurf speichern")
@@ -159,13 +174,15 @@ with tab_randbedingungen:
         if speichern_kraft: 
             st.session_state.entwurf_kraefte[kraft_knoten] = (float(fx), float(fz))
             st.session_state.kraft_knoten_id = kraft_knoten
-            st.success(f"Kraft Entwurf für Knoten {kraft_knoten} gespeichert !!")
+            flash("success", f"Kraft Entwurf für Knoten {kraft_knoten} gespeichert !!")
+            #st.success(f"Kraft Entwurf für Knoten {kraft_knoten} gespeichert !!")
             st.rerun()
 
         if loeschen_kraft: 
             st.session_state.entwurf_kraefte.pop(kraft_knoten, None)
             st.session_state.kraft_knoten_id = kraft_knoten
-            st.success(f"Kraft Entwurf für Knoten {kraft_knoten} entfernt !!")
+            flash("success", f"Kraft Entwurf für Knoten {kraft_knoten} entfernt !!")
+            #st.success(f"Kraft Entwurf für Knoten {kraft_knoten} entfernt !!")
             st.rerun()
 
 
@@ -192,10 +209,10 @@ with tab_randbedingungen:
         st.markdown("## Lager")
 
         with st.form("lager_editor"):
-            lager_knoten = st.selectbox("Knoten für Lager", options=aktive_ids, index=aktive_ids.index(st.session_state.lager_knoten_id) if st.session_state.lager_knoten_id in aktive_ids else 0, key="lager_knoten_auswahl")
+            lager_knoten = st.selectbox("Knoten für Lager", options=aktive_ids, index=aktive_ids.index(st.session_state.lager_knoten_id) if st.session_state.lager_knoten_id in aktive_ids else 0)#, key="lager_knoten_auswahl")
 
             lager_typ_default = st.session_state.entwurf_lager.get(lager_knoten, "Kein Lager")
-            lager_typ = st.selectbox("Lagertyp für ausgewählten Knoten", ["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"], index=["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"].index(lager_typ_default), key=f"lager_typ_entwurf_{lager_knoten}")
+            lager_typ = st.selectbox("Lagertyp für ausgewählten Knoten", ["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"], index=["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"].index(lager_typ_default))#, key=f"lager_typ_entwurf_{lager_knoten}")
 
             c1, c2 = st.columns(2)
             speichern_lager = c1.form_submit_button("In Entwurf speichern")
@@ -204,12 +221,14 @@ with tab_randbedingungen:
         if speichern_lager: 
             st.session_state.entwurf_lager[lager_knoten] = lager_typ
             st.session_state.lager_knoten_id = lager_knoten
-            st.success(f"Lager Entwurf für Knoten {lager_knoten} gespeichert !!")            
+            flash("success", f"Lager Entwurf für Knoten {lager_knoten} gespeichert !!")
+            #st.success(f"Lager Entwurf für Knoten {lager_knoten} gespeichert !!")            
             st.rerun()
         if loeschen_lager: 
             st.session_state.entwurf_lager.pop(lager_knoten, None)
             st.session_state.lager_knoten_id = lager_knoten
-            st.success(f"Lager Entwurf für Knoten {lager_knoten} entfernt !!")        
+            flash("success", f"Lager Entwurf für Knoten {lager_knoten} entfernt !!")
+            #st.success(f"Lager Entwurf für Knoten {lager_knoten} entfernt !!")        
             st.rerun()
 
         st.caption(f"Aktive Lager Entwürfe: {len(st.session_state.entwurf_lager)}")
@@ -236,13 +255,15 @@ with tab_randbedingungen:
     with colA: 
         if st.button("Etwürfe auf Struktur anwenden"):
             entwurf_auf_struktur_anwenden(struktur)
-            st.success("Entwürfe angewendet. Jetzt kann man Solve drücken !!")
+            flash("success", "Entwürfe angewendet. Jetzt kann man Solve drücken")
+            #st.success("Entwürfe angewendet. Jetzt kann man Solve drücken !!")
             st.rerun()
 
     with colB: 
         if st.button("Entwürfe zurücksetzten"): 
             st.session_state.entwurf_kraefte = {}
             st.session_state.entwurf_lager = {}
+            flash("success", "Entwürfe gelöscht")
             st.success("Entwürfe gelöscht!!!")
             st.rerun()
 
@@ -257,7 +278,8 @@ with tab_solve:
         else: 
             st.session_state.u = u
             st.session_state.mapping = mapping 
-            st.success("Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
+            flash("success", "Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
+            #st.success("Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
             st.rerun()
 
 # Tab 4 Optimierung
