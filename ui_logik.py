@@ -149,7 +149,7 @@ def sammle_plot_marker(struktur:Struktur):
     return festlager_ids, loslager_ids, kraft_ids
 
 
-def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Strultur", federn_anzeigen = True, knoten_ids_anzeigen = False, highlight_knoten_id = None):
+def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False, highlight_knoten_id = None):
     #Knoten zeichen und feder (optional)
     fig, ax = plt.subplots(figsize=(11, 4.5), dpi = 120)
     ax.grid(True, linewidth = 0.2)
@@ -181,10 +181,10 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
         ax.scatter(x, z, s=18, marker="s", color="black", label="Loslager")
 
     #Kraft als Pfeil dazu zeichnen 
-    pfeil_skalierung = 0.2
+    pfeil_skalierung = 0.5
     for k_id in kraft_ids:
         k = struktur.knoten[k_id]
-        ax.arrow(k.x, k.z, pfeil_skalierung*k.kraft_x, pfeil_skalierung*k.kraft_z, head_width=0.15, head_length=0.25, length_includes_head=True, color="red")
+        ax.arrow(k.x, k.z, pfeil_skalierung*k.kraft_x, pfeil_skalierung*k.kraft_z, head_width=0.1, head_length=0.2, length_includes_head=True, color="red")
 
 
     #Knoten ID-Texte 
@@ -193,10 +193,20 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
             k = struktur.knoten[k_id]
             ax.text(k.x, k.z, str(k_id), fontsize = 5)
 
+#===========================================MUSS ICH MIR NOCH ANSCHAUEN===================================================
     #ausgewählter Knoten(z.B Lastknoten wird gehighlighted)
-    if highlight_knoten_id is not None and highlight_knoten_id in struktur.knoten:
-        k = struktur.knoten[highlight_knoten_id]
-        ax.scatter([k.x], [k.z], s=18, marker = "o", label = "Auswahl Lastknoten", color="red")
+    #if highlight_knoten_id is not None and highlight_knoten_id in struktur.knoten:
+     #   k = struktur.knoten[highlight_knoten_id]
+      #  ax.scatter([k.x], [k.z], s=18, marker = "o", label = "Auswahl Lastknoten", color="red")
+
+    #Alle Lastknoten rot markieren
+    kraft_knoten_ids = [k_id for k_id, k in struktur.knoten.items() if k.kraft_x != 0 or k.kraft_z != 0]
+
+    if kraft_knoten_ids:
+        xs = [struktur.knoten[k_id].x for k_id in kraft_knoten_ids]
+        zs = [struktur.knoten[k_id].z for k_id in kraft_knoten_ids]
+        ax.scatter(xs, zs, s=18, color="red", marker="o", label="Kraftknoten")
+
 
     if u is not None and mapping is not None: 
         #deformierte Knoten und Federn 
