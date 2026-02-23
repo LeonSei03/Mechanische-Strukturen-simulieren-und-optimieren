@@ -149,7 +149,7 @@ def sammle_plot_marker(struktur:Struktur):
     return festlager_ids, loslager_ids, kraft_ids
 
 
-def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False):
+def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False, lastpfad_knoten=None):
     #Knoten zeichen und feder (optional)
     fig, ax = plt.subplots(figsize=(11, 4.5), dpi = 120)
     ax.grid(True, linewidth = 0.2)
@@ -231,13 +231,44 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
                 zj = k_j.z + skalierung * u[jjz]
 
                 ax.plot([xi, xj], [zi, zj], linewidth = 0.8, color="gray")
-    
+
+        # Lastpfade anzeigen lassen
+        if lastpfad_knoten is not None:
+
+            # Falls mehrere Pfade -> direkt so verwenden
+            pfade = lastpfad_knoten
+
+            for pfad in pfade:
+
+                if len(pfad) < 2:
+                    continue
+
+                xs = []
+                zs = []
+
+                for k_id in pfad:
+                    k = struktur.knoten[k_id]
+
+                    # deformiert
+                    if u is not None and mapping is not None and k_id in mapping:
+                        ix, iz = mapping[k_id]
+                        xs.append(k.x + skalierung * u[ix])
+                        zs.append(k.z + skalierung * u[iz])
+                    else:
+                        # undeformiert
+                        xs.append(k.x)
+                        zs.append(k.z)
+
+                ax.plot(xs, zs, linewidth=2, color="red")
+
+
     ax.set_aspect("equal", adjustable="box")
     ax.set_title(titel)
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.legend()
     return fig
+
 #Übernimmt alle Entwurf Kräfte und Entwurf Lager aus dem Session-State in die Struktur
 def entwurf_auf_struktur_anwenden(struktur:Struktur):
 
