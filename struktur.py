@@ -382,6 +382,50 @@ class Struktur:
             
         return False
     
+    # gibt eine Liste an Knoten ids zurück, welche auf dem Lastpfad zwischen Lastknoten und Lagerknoten liegen
+    def finde_lastpfad_knoten(self):
+
+        # aktuelle Last- und Lagerknoten
+        last_ids = self.last_knoten_id()
+        lager_ids = set(self.lager_knoten_id())
+
+        if not last_ids or not lager_ids:
+            return None
+        
+        adj = self.nachbarschaft()
+        alle_pfade = []
+
+        for start_id in last_ids:
+            if start_id not in adj:
+                continue
+
+            vorgaenger = {start_id: None}
+            queue = [start_id]
+
+            while queue:
+                v = queue.pop(0)
+                
+                # wenn Lager erreicht wird Pfad rekonstruiert
+                if v in lager_ids:
+                    pfad = []
+                    cur = v
+                    while cur is not None:
+                        pfad.append(cur)
+                        cur = vorgaenger[cur]
+                    pfad.reverse()
+                    alle_pfade.append(pfad)
+                
+                for nb in adj.get(v, []):
+                    if nb not in vorgaenger:
+                        vorgaenger[nb] = v
+                        queue.append(nb)
+
+        if not alle_pfade:
+            return None
+
+        return alle_pfade
+
+
     # Funktion um die Aktiven Knoten Koordinaten zu speichern, für Plot
     def koordinaten_knoten(self):
         xs = []
@@ -411,5 +455,3 @@ class Struktur:
             zs.append(z_neu)
 
         return xs, zs
-
-

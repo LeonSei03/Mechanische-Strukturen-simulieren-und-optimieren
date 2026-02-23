@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 from optimierung import TopologieOptimierer
 import matplotlib.pyplot as plt
+import io
 from checkpoint_database import (
     checkpoint_eintrag_anlegen,
     checkpoints_auflisten,
@@ -121,7 +122,6 @@ struktur = st.session_state.struktur
 if struktur is None:
     st.info("Erstellen Sie mit den Paramteren links in der Seitenleiste eine Struktur um daran arbeiten zu können!") 
     st.stop()
-    
 
 #Hauptlayout für Tabs bzw. Überischt 
 tab_ansicht, tab_optimierung, tab_plots = st.tabs(["Ansicht", "Optimierung", "Verlaufplots"])
@@ -139,9 +139,25 @@ with tab_ansicht:
     col_a.metric("Startmasse (kg)", start_masse)
     col_b.metric("Aktuelle Masse (kg)", aktuelle_masse)
 
-    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen) 
+    lastpfad = struktur.finde_lastpfad_knoten()
+
+    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad)
     
     st.pyplot(fig, use_container_width=True)
+
+    # Plot als PNG herunterladen
+    puffer = io.BytesIO()
+
+    # Figure in den Buffer schreiben
+    fig.savefig(puffer, format="png", bbox_inches="tight", dpi=200)
+    puffer.seek(0)
+
+    st.download_button(
+    label="Optimierte Struktur als PNG herunterladen",
+    data=puffer,
+    file_name="struktur_ansicht.png",
+    mime="image/png"
+    )
 
     #Knoten bearbeiten (mit Dropdown auswahl)
     st.markdown("---")
@@ -554,6 +570,8 @@ with tab_optimierung:
     # Ergebnisplot (undeformiert) im Optimierungs-Tab anzeigen
     if st.session_state.get("historie") is not None:
         st.markdown("### Optimierte Struktur (undeformiert)")
+
+        lastpfad = struktur.finde_lastpfad_knoten()
         fig_opt = plot_struktur(
             struktur=st.session_state.struktur,
             u=None,
@@ -562,8 +580,23 @@ with tab_optimierung:
             titel="Optimierte Struktur (undeformiert)",
             federn_anzeigen=federn_anzeigen,
             knoten_ids_anzeigen=knoten_ids_anzeigen,
+            lastpfad_knoten=lastpfad,
         )
         st.pyplot(fig_opt, use_container_width=True)
+        
+        # Plot als PNG herunterladen
+        puffer = io.BytesIO()
+
+        # Figure in den Buffer schreiben
+        fig_opt.savefig(puffer, format="png", bbox_inches="tight", dpi=200)
+        puffer.seek(0)
+
+        st.download_button(
+        label="Optimierte Struktur als PNG herunterladen",
+        data=puffer,
+        file_name="optimierte_struktur.png",
+        mime="image/png"
+        )
 
 with tab_plots:
     st.subheader("Optimierungsverlauf")
