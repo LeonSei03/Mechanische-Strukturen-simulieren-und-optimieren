@@ -21,6 +21,23 @@ def loese_aktuelle_struktur(struktur:Struktur):
     u = solve(K.copy(), F, fixiert)
     return u, mapping
 
+#funktion um knotenposition für die lager und kraft marker zu bestimmen 
+def knoten_pos(struktur:Struktur, knoten_id: int, u=None, mapping=None, skalierung: float = 1.0):
+    '''
+    Funktion gibt die Plot-Position eines Knoten zurück 
+    - Ohne u/mapping die undeformierte Position (x, z) 
+    - Mit u/mapping die defomierte Position (x + u_x * skalierung und z + u_z * skalierung)
+    '''
+    k = struktur.knoten[knoten_id]
+    x, z = k.x, k.z
+
+    #Wenn eine Lösung mit u vorhanden ist und der Knoten im mapping ist dann deformierte Position verwenden 
+    if u is not None and mapping is not None and knoten_id in mapping:
+        ix, iz = mapping[knoten_id]
+        x += float(skalierung) * float(u[ix])
+        z += float(skalierung) * float(u[iz])
+
+    return x, z 
 # Funktion um alle aktiven Knoten darzustellen
 #def plot_knoten(struktur, u=None, mapping=None, skalierung=1.0, title="Struktur", show_federn = True, show_ids = False):
     #fig, ax = plt.subplots()
@@ -71,7 +88,6 @@ def loese_aktuelle_struktur(struktur:Struktur):
     #return fig
     
 # Struktur aufbauen, wie in der main.py die test_optimierung
-#
 def struktur_bauen(nx, nz, dx, dz, lager_modus):
     s = Struktur()
     
@@ -161,57 +177,53 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
             f = struktur.federn[f_id]
             k_i = struktur.knoten[f.knoten_i]
             k_j = struktur.knoten[f.knoten_j]
-            ax.plot([k_i.x, k_j.x], [k_i.z, k_j.z], linewidth=0.8, color="black")
+            ax.plot([k_i.x, k_j.x], [k_i.z, k_j.z], linewidth=0.8, color="black", zorder = 0)
 
-        #undeformierte Knotenstruktur
+    #undeformierte Knotenstruktur
     xs, zs = struktur.koordinaten_knoten()
-    ax.scatter(xs, zs, s=18, label="Knoten undeformiert")
+    ax.scatter(xs, zs, s=18, label="Knoten undeformiert", zorder = 1)
 
     #Marker ids
     festlager_ids, loslager_ids, kraft_ids = sammle_plot_marker(struktur)
 
     if festlager_ids:
-        x = [struktur.knoten[i].x for i in festlager_ids]
-        z = [struktur.knoten[i].z for i in festlager_ids]
-        ax.scatter(x, z, s=18, marker="s", color="green", label="Festlager")
+        x = [knoten_pos(struktur, i, u, mapping, skalierung)[0] for i in festlager_ids]
+        z = [knoten_pos(struktur, i, u, mapping, skalierung)[1] for i in festlager_ids]
+        ax.scatter(x, z, s=18, marker="s", color="green", label="Festlager", zorder = 3)
 
     if loslager_ids:
-        x = [struktur.knoten[i].x for i in loslager_ids]
-        z = [struktur.knoten[i].z for i in loslager_ids]
-        ax.scatter(x, z, s=18, marker="s", color="black", label="Loslager")
+        x = [knoten_pos(struktur, i, u, mapping, skalierung)[0] for i in loslager_ids]
+        z = [knoten_pos(struktur, i, u, mapping, skalierung)[1] for i in loslager_ids]
+        ax.scatter(x, z, s=18, marker="s", color="black", label="Loslager", zorder = 3)
 
     #Kraft als Pfeil dazu zeichnen 
     pfeil_skalierung = 0.5
     for k_id in kraft_ids:
         k = struktur.knoten[k_id]
-        ax.arrow(k.x, k.z, pfeil_skalierung*k.kraft_x, pfeil_skalierung*k.kraft_z, head_width=0.1, head_length=0.2, length_includes_head=True, color="red")
+        x0, z0 = knoten_pos(struktur, k_id, u, mapping, skalierung)
+        ax.arrow(x0, z0, pfeil_skalierung*k.kraft_x, pfeil_skalierung*k.kraft_z, head_width=0.1, head_length=0.2, length_includes_head=False, color="red", zorder = 5)
 
 
     #Knoten ID-Texte 
     if knoten_ids_anzeigen:
         for k_id in struktur.aktive_knoten_ids():
             k = struktur.knoten[k_id]
-            ax.text(k.x, k.z, str(k_id), fontsize = 5)
-
-#===========================================MUSS ICH MIR NOCH ANSCHAUEN===================================================
-    #ausgewählter Knoten(z.B Lastknoten wird gehighlighted)
-    #if highlight_knoten_id is not None and highlight_knoten_id in struktur.knoten:
-     #   k = struktur.knoten[highlight_knoten_id]
-      #  ax.scatter([k.x], [k.z], s=18, marker = "o", label = "Auswahl Lastknoten", color="red")
+            x_txt, z_txt = knoten_pos(struktur, k_id, u, mapping, skalierung)
+            ax.text(x_txt, z_txt, str(k_id), fontsize = 5)
 
     #Alle Lastknoten rot markieren
-    kraft_knoten_ids = [k_id for k_id, k in struktur.knoten.items() if k.kraft_x != 0 or k.kraft_z != 0]
+    #kraft_knoten_ids = [k_id for k_id, k in struktur.knoten.items() if k.kraft_x != 0 or k.kraft_z != 0]
 
-    if kraft_knoten_ids:
-        xs = [struktur.knoten[k_id].x for k_id in kraft_knoten_ids]
-        zs = [struktur.knoten[k_id].z for k_id in kraft_knoten_ids]
-        ax.scatter(xs, zs, s=18, color="red", marker="o", label="Kraftknoten")
+    if kraft_ids:
+        xs_k = [knoten_pos(struktur, k_id, u, mapping, skalierung)[0] for k_id in kraft_ids]
+        zs_k = [knoten_pos(struktur, k_id, u, mapping, skalierung)[1] for k_id in kraft_ids]
+        ax.scatter(xs_k, zs_k, s=18, color="red", marker="o", label="Kraftknoten", zorder=7)
 
 
     if u is not None and mapping is not None: 
         #deformierte Knoten und Federn 
         xs_d, zs_d = struktur.koordinaten_knoten_mit_verschiebung(u, mapping, skalierung=skalierung)
-        ax.scatter(xs_d, zs_d, s = 18, label = f"Knoten (deformiert x{skalierung})")
+        ax.scatter(xs_d, zs_d, s = 18, label = f"Knoten (deformiert x{skalierung})", zorder = 2)
 
         if federn_anzeigen: 
             for f_id in struktur.aktive_federn_ids():
@@ -230,7 +242,7 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
                 xj = k_j.x + skalierung * u[jjx]
                 zj = k_j.z + skalierung * u[jjz]
 
-                ax.plot([xi, xj], [zi, zj], linewidth = 0.8, color="gray")
+                ax.plot([xi, xj], [zi, zj], linewidth = 0.8, color="gray", zorder = 1)
 
         # Lastpfade anzeigen lassen
         if lastpfad_knoten is not None:
@@ -265,7 +277,7 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
     ax.set_aspect("equal", adjustable="box")
     ax.set_title(titel)
     ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_ylabel("z")
     ax.legend()
     return fig
 
