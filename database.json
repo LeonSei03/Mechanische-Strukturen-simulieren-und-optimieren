@@ -1,3 +1,1 @@
-{
-    "checkpoits": {}
-}
+{"checkpoints": {"1": {"name": "Checkpoint", "pfad": "checkpoints\\checkpoint_20260223_124136.pkl", "zeitpunkt": "{TinyDateTime}:2026-02-23T12:41:36.450644", "parameter": {"ziel_anteil": 0.5, "max_iter": 15, "max_entfernen_pro_iter": 20, "u_faktor": 3.0}, "info": {"iteration": 5, "aktive_knoten": 350}}, "2": {"name": "Checkpoint", "pfad": "checkpoints\\checkpoint_20260223_132725.pkl", "zeitpunkt": "{TinyDateTime}:2026-02-23T13:27:25.069487", "parameter": {"ziel_anteil": 0.5, "max_iter": 15, "max_entfernen_pro_iter": 20, "u_faktor": 3.0}, "info": {"iteration": 15, "aktive_knoten": 300}}}}

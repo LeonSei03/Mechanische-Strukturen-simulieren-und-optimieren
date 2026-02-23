@@ -3,7 +3,7 @@ from tinydb import Query
 from database import DatabaseConnector
 import os
 
-_checkpoint_tabelle = DatabaseConnector().get_table("checkpoits")
+_checkpoint_tabelle = DatabaseConnector().get_table("checkpoints")
 
 Q = Query()
 

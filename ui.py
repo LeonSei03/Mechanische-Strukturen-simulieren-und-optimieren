@@ -16,7 +16,8 @@ from ui_logik import (
     entwurf_auf_struktur_anwenden,
     reset_ui_state_bei_neuer_struktur,
     checkpoint_speichern,
-    checkpoint_laden
+    checkpoint_laden,
+    pruefe_lagerung_genug
 )
 
 st.set_page_config(page_title="Balken Optimierung", layout="wide")
@@ -53,6 +54,9 @@ if "ausgewaehlter_knoten_id" not in st.session_state:
 
 if "last_knoten_id" not in st.session_state:
     st.session_state.last_knoten_id = None 
+
+if "start_masse" not in st.session_state: 
+    st.session_state.start_masse = None 
 
 # sessionstates für optimierung
 if "optimierer" not in st.session_state:
@@ -106,7 +110,7 @@ with st.sidebar.form("parameter_form"):
 #Struktur erzeugen (beim ersten Start, oder wenn User "Übernehmen" drückt)
 if uebernehmen or st.session_state.struktur is None:
     st.session_state.struktur = struktur_bauen(int(nx), int(nz), float(dx), float(dz), lager_modus)
-
+    st.session_state.start_masse = len(st.session_state.struktur.aktive_knoten_ids())
     reset_ui_state_bei_neuer_struktur()
     st.session_state.historie = None
     st.rerun()
@@ -120,7 +124,7 @@ if struktur is None:
     
 
 #Hauptlayout für Tabs bzw. Überischt 
-tab_ansicht, tab_randbedingungen, tab_solve, tab_optimierung, tab_plots = st.tabs(["Ansicht", "Knoten bearbeiten", "Solve", "Optimierung", "Verlaufplots"])
+tab_ansicht, tab_optimierung, tab_plots = st.tabs(["Ansicht", "Optimierung", "Verlaufplots"])
 
 #Tab 1 Ansicht (Preview immer sichtbar)
 with tab_ansicht:
@@ -128,20 +132,19 @@ with tab_ansicht:
 
     #Masse Infos (1 Knoten = 1kg)
     aktive_knoten = struktur.aktive_knoten_ids()
-    start_masse = len(aktive_knoten) #kg
     aktuelle_masse = len(aktive_knoten)
+    start_masse = st.session_state.start_masse if st.session_state.start_masse is not None else aktuelle_masse
 
     col_a, col_b = st.columns(2)
     col_a.metric("Startmasse (kg)", start_masse)
     col_b.metric("Aktuelle Masse (kg)", aktuelle_masse)
 
-    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, 
-                        highlight_knoten_id=st.session_state.kraft_knoten_id) 
+    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen) 
     
     st.pyplot(fig, use_container_width=True)
 
-#Tab 2 Knoten bearbeiten (mit Dropdown auswahl)
-with tab_randbedingungen: 
+    #Knoten bearbeiten (mit Dropdown auswahl)
+    st.markdown("---")
     st.subheader("Knoten auswählen und Kraft/Lager setzen")
 
     aktive_ids = struktur.aktive_knoten_ids()
@@ -268,26 +271,31 @@ with tab_randbedingungen:
 
     with colB: 
         if st.button("Entwürfe zurücksetzten"): 
+            st.session_state.struktur = struktur_bauen(int(nx), int(nz), float(dx), float(dz), lager_modus)
             st.session_state.entwurf_kraefte = {}
             st.session_state.entwurf_lager = {}
-            flash("success", "Entwürfe gelöscht")
-            st.success("Entwürfe gelöscht!!!")
+            st.session_state.u = None 
+            st.session_state.mapping = None
+            flash("success", "Entwürfe gelöscht und Struktur aktualisiert")
+            #st.success("Entwürfe gelöscht!!!")
             st.rerun()
 
-#Tab 3 Solve 
-with tab_solve:
+    #System lösen button 
     st.subheader("System lösen")
 
     if st.button("Solve"):
-        u, mapping = loese_aktuelle_struktur(st.session_state.struktur)
-        if u is None: 
-            st.error("Solver: System nicht lösbar (evtl. zu wenig Lager / instabil) !!")
-        else: 
-            st.session_state.u = u
-            st.session_state.mapping = mapping 
-            flash("success", "Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
-            #st.success("Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
-            st.rerun()
+        if not pruefe_lagerung_genug(st.session_state.struktur):
+            st.error("System ist unvollständig gelagert, keine eindeutige Lösung möglich!")
+        else:
+            u, mapping = loese_aktuelle_struktur(st.session_state.struktur)
+            if u is None: 
+                st.error("Solver: System nicht lösbar (evtl. zu wenig Lager / instabil) !!")
+            else: 
+                st.session_state.u = u
+                st.session_state.mapping = mapping 
+                flash("success", "System gelöst !!")
+                #st.success("Gelöst !! Wechsel zu 'Ansicht' um die deformierte Struktur zu sehen !!")
+                st.rerun()
 
 # Tab 4 Optimierung
 with tab_optimierung:
@@ -554,7 +562,6 @@ with tab_optimierung:
             titel="Optimierte Struktur (undeformiert)",
             federn_anzeigen=federn_anzeigen,
             knoten_ids_anzeigen=knoten_ids_anzeigen,
-            highlight_knoten_id=None,
         )
         st.pyplot(fig_opt, use_container_width=True)
 
