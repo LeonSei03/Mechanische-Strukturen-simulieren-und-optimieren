@@ -149,7 +149,7 @@ def sammle_plot_marker(struktur:Struktur):
     return festlager_ids, loslager_ids, kraft_ids
 
 
-def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False, highlight_knoten_id = None):
+def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False):
     #Knoten zeichen und feder (optional)
     fig, ax = plt.subplots(figsize=(11, 4.5), dpi = 120)
     ax.grid(True, linewidth = 0.2)
@@ -252,6 +252,17 @@ def entwurf_auf_struktur_anwenden(struktur:Struktur):
     #Ergebnis ist veraltet, solve muss neu laufen 
     st.session_state.u = None 
     st.session_state.mapping = None   
+
+#prüft ob das system prinzipiell gelagert ist 
+def pruefe_lagerung_genug(struktur:Struktur):
+    lager_ids = struktur.lager_knoten_id()
+    if not lager_ids:
+        return False 
+    
+    #mindestens 1 mal in x und einmal in z fixiert
+    fix_x = any(struktur.knoten[k].fix_x for k in lager_ids)
+    fix_z = any(struktur.knoten[k].fix_z for k in lager_ids)
+    return fix_x and fix_z
 
 def reset_ui_state_bei_neuer_struktur():
     st.session_state.kraft_knoten_id = None
