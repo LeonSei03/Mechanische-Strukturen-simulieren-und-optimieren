@@ -1,6 +1,13 @@
 import streamlit as st
 import numpy as np
 from optimierung import TopologieOptimierer
+import matplotlib.pyplot as plt
+from checkpoint_database import (
+    checkpoint_eintrag_anlegen,
+    checkpoints_auflisten,
+    checkpoint_holen,
+    checkpoint_loeschen
+)
 
 from ui_logik import (
     struktur_bauen,
@@ -113,7 +120,7 @@ if struktur is None:
     
 
 #Hauptlayout für Tabs bzw. Überischt 
-tab_ansicht, tab_randbedingungen, tab_solve, tab_optimierung = st.tabs(["Ansicht", "Knoten bearbeiten", "Solve", "Optimierung"])
+tab_ansicht, tab_randbedingungen, tab_solve, tab_optimierung, tab_plots = st.tabs(["Ansicht", "Knoten bearbeiten", "Solve", "Optimierung", "Verlaufplots"])
 
 #Tab 1 Ansicht (Preview immer sichtbar)
 with tab_ansicht:
@@ -305,7 +312,7 @@ with tab_optimierung:
 
         start_neu = st.form_submit_button("Optimierung starten")
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
     with col1:
         weiter = st.button("Weiter (1 Schritt)", use_container_width=True)
@@ -325,6 +332,9 @@ with tab_optimierung:
 
     with col6:
         laden = st.button("Laden / Fortsetzen", use_container_width=True)
+
+    with col7:
+        loeschen = st.button("Checkpoint löschen", use_container_width=True)
 
     if start_neu:
         # neuer optimierer mit aktueller Struktur erzeugen
@@ -369,22 +379,67 @@ with tab_optimierung:
             # mit Pickle abspeichern
             pfad = checkpoint_speichern(zustand)
 
-            # Pfad im sessionstate merken
-            st.session_state.checkpoint_pfad = pfad
-            st.success(f"Checkpoint gespeichert: {pfad}")
+            opt = st.session_state.optimierer
+
+            parameter = {
+                "ziel_anteil": opt.ziel_materialanteil,
+                "max_iter": opt.max_iterationen,
+                "max_entfernen_pro_iter": opt.max_entfernen_pro_iteration,
+                "u_faktor": opt.u_faktor,
+            }
+
+            info = {
+                "iteration": opt.aktuelle_iteration,
+                "aktive_knoten": len(opt.struktur.aktive_knoten_ids()),
+            }
+
+            # Eintrag in Tinydb
+            doc_id = checkpoint_eintrag_anlegen(pfad=pfad, name="Checkpoint", parameter=parameter, info=info)
+
+            st.success(f"Checkpoint gespeichert!! Database ID: {doc_id}")
+
+    st.markdown("### Gespeicherte Checkpoints")
+
+    alle = checkpoints_auflisten()
+    
+    if not alle:
+        st.info("Bitte erst einen Checkpoint anlegen!!")
+        ausgewahlter_doc_id = None
+    else:
+        optionen = []
+        for d in alle:
+            doc_id = d.doc_id
+            zeit = d.get("zeitpunkt")
+            iteration = d.get("info", {}).get("iteration", "?")
+
+            optionen.append((doc_id, f"[{doc_id}] gestoppt bei {iteration}. Iteration | {zeit}"))
+        
+        labels = [txt for _, txt in optionen]
+        idx = st.selectbox("Checkpoint auswählen", range(len(labels)), format_func=lambda i: labels[i])
+
+        ausgewahlter_doc_id = optionen[idx][0]
 
     # Checkpoint ladne und mit optimierung fortsetzen
-    if laden: 
-        if not st.session_state.checkpoint_pfad:
-            st.warning("Kein Checkpoint-Pfad bekannt. Speichere zuerst oder trage einen Pfad ein!!")
+    if laden:
+        if ausgewahlter_doc_id is None:
+            st.warning("Kein Checkpoint auswählbar!!")
         else:
             # checkpoint laden
-            daten = checkpoint_laden(st.session_state.checkpoint_pfad)
+            eintrag = checkpoint_holen(int(ausgewahlter_doc_id))
 
-            # optimierer neu erzeugen
-            opt = TopologieOptimierer(daten["struktur"])
-            # Zustand holen 
-            opt.zustand_importieren(daten)
+            if not eintrag:
+                st.error("Kein Checkpoint Eintrag gefunden!!")
+            else:
+                pfad = eintrag["pfad"]
+
+                # pickle datei laden
+                daten = checkpoint_laden(pfad)
+                
+                # optimierer neu erzeugen
+                opt = TopologieOptimierer(daten["struktur"])
+
+                # Zustand holen
+                opt.zustand_importieren(daten)
 
             # sessionstates aktualisieren
             st.session_state.optimierer = opt
@@ -400,6 +455,18 @@ with tab_optimierung:
 
             st.success("Checkpoint geladen. Du kannst jetzt weiterlaufen.")
             st.rerun()
+
+    if loeschen:
+        if ausgewahlter_doc_id is None:
+            st.warning("Kein Checkpoint ist ausgewählt!!")
+        else:
+            ok, msg = checkpoint_loeschen(int(ausgewahlter_doc_id))
+
+            if ok:
+                st.success(msg)
+                st.rerun()
+            else:
+                st.error(msg)
 
     if schnell_durchlaufen:
         if st.session_state.optimierer is None:
@@ -491,3 +558,63 @@ with tab_optimierung:
         )
         st.pyplot(fig_opt, use_container_width=True)
 
+with tab_plots:
+    st.subheader("Optimierungsverlauf")
+    historie = st.session_state.get("historie")
+
+    if not historie:
+        st.info("Noch keine Optimierungshistorie verhanden, erst eine Struktur optimieren!!")
+        st.stop()
+
+    iterationen = [h.get("iteration", i) for i, h in enumerate(historie)]
+    energien = [h.get("gesamtenergie") for h in historie]
+    material = [h.get("material_anteil") for h in historie]
+    aktive_knoten = [h.get("aktive_knoten") for h in historie]
+    max_u = [h.get("max_u") for h in historie]
+    u_grenze = [h.get("u_max_grenze") for h in historie]
+
+    
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        # Plot der Gesamtenergie
+        fig1 = plt.figure()
+        plt.plot(iterationen, energien)
+        plt.xlabel("Iteration")
+        plt.ylabel("Gesamtenergie")
+        plt.title("Gesamtenergie über Iterationen")
+        plt.grid(True)
+        st.pyplot(fig1, use_container_width=True)
+
+    with col2:
+        # Plot vom Materialanteil
+        fig2 = plt.figure()
+        plt.plot(iterationen, material)
+        plt.xlabel("Iteration")
+        plt.ylabel("Materialanteil")
+        plt.title("Materialanteil über Iterationen")
+        plt.grid(True)
+        st.pyplot(fig2, use_container_width=True)
+
+    with col3:
+        # Plot der aktiven Knoten
+        fig3 = plt.figure()
+        plt.plot(iterationen, aktive_knoten)
+        plt.xlabel("Iteration")
+        plt.ylabel("Aktive Knoten")
+        plt.title("Aktive Knoten über Iterationen")
+        plt.grid(True)
+        st.pyplot(fig3, use_container_width=True)
+
+        if any(v is not None for v in max_u):
+            fig4 = plt.figure()
+            plt.plot(iterationen, max_u, label="max_u")
+            plt.plot(iterationen, u_grenze, label="u_max_grenze")
+            plt.xlabel("Iteration")
+            plt.ylabel("Verschiebung")
+            plt.title("Maximale Verschiebung vs. Grenze")
+            plt.grid(True)
+            plt.legend()
+            st.pyplot(fig4, use_container_width=True)
+
+    plt.close("all")
