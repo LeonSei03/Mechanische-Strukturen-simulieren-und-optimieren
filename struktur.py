@@ -317,6 +317,113 @@ class Struktur:
             k_id for k_id, k in self.knoten.items() if k.knoten_aktiv and (k.kraft_x != 0.0 or k.kraft_z != 0.0)
         ]
     
+    #Funktionen für die Heatmap, hier hab ich Code von dir aus dem Optimierer übernommen, allerdings ohne die solve, weil bereits u berechnet 
+    def feder_energien_aus_u(self, u, mapping):
+        '''
+        Berechnet die Energie jeder aktiven Feder aus der zuvor berechneten Verschiebung u!
+        Hier wird nichts neu gelöst also kein (system_aufbauen, kein SOLVE)
+
+        - reine Nachbearbeitung für die Darstellung im Plot
+        
+        Rückgabe:
+        - energien: dict {f_id: Energie}
+        '''
+                
+        energien = {}
+
+        for f_id in self.aktive_federn_ids():
+            feder = self.federn[f_id]
+
+            # zur sicherheit für inaktive Endknoten
+            if feder.knoten_i not in mapping or feder.knoten_j not in mapping:
+                continue
+
+            ix, iz = mapping[feder.knoten_i]
+            jx, jz = mapping[feder.knoten_j]
+
+            # Verschiebungsvektor (local)
+            u_local = np.array([u[ix], u[iz], u[jx], u[jz]], dtype=float)
+
+            # Steifigkeitsmatrix (local)
+            K_local = self.lokale_feder_matrix(f_id)
+
+            # Energie berechnen
+            E = 0.5 * float(u_local.T @ K_local @ u_local)
+            energien[f_id] = E 
+        
+        return energien
+    
+    #Ebenfalls sinngemäß aus Optimierung übernommen (keine neuberechnung hier quasi)
+    def knoten_scores_aus_federenergien(self, energien, mapping, modus="halb"):
+        '''
+        Erzeugt Knotenwerte aus Federenergien (für die Knoten-Heatmap)
+
+        modus: 
+        - "halb": jeder Endknoten bekommt 0.5 * Energie (wie beim Opitmierer)
+        - "summe": jeder Endknoten bekommt E
+
+        Rückgabe: 
+        - scores: dict {knoten_id: score}
+        '''
+        # scores für jeden aktiven Knoten initialisieren
+        scores = {k_id: 0.0 for k_id in mapping.keys()}
+
+        # jeder Feder die halbe Energie geben
+        for f_id, E in energien.items():
+            feder = self.federn[f_id]
+            i = feder.knoten_i
+            j = feder.knoten_j
+
+            if modus == "halb":
+                anteil = 0.5 * float(E)
+            else: 
+                anteil = float(E)
+
+            if i in scores:
+                scores[i] += anteil
+            if j in scores:
+                scores[j] += anteil
+        
+        return scores
+    
+
+    def feder_kraefte_aus_u(self, u, mapping, betrag=True):
+        '''
+        Berehnet pro aktiver Feder die axiale Federkraft N aus u
+
+        Physik dahinter: 
+        - delta = e * (u_j - u_i)
+        N = k * delta
+
+        betrag=True: 
+        - gibt nur positive Werte zurück (Beträge)
+        '''
+
+        kraefte = {}
+
+        for f_id in self.aktive_federn_ids():
+            feder = self.federn[f_id]
+
+            if feder.knoten_i not in mapping or feder.knoten_j not in mapping: 
+                continue
+
+            ix, iz = mapping[feder.knoten_i]
+            jx, jz = mapping[feder.knoten_j]
+
+            dux = float(u[jx] - u[ix])
+            duz = float(u[jz] - u[iz])
+
+            #Einheitsvektor Feder 
+            e = self.feder_einheitsvektor(f_id) 
+            delta = float(e[0] * dux + e[1] * duz)
+
+            k = float(feder.steifigkeit)
+            N = k * delta
+
+            kraefte[f_id] = abs(N) if betrag else N 
+
+        return kraefte
+
     # Funktion die eine Liste baut aus aktiven verbundenen Knoten und Federn
     def nachbarschaft(self):
         aktive_knoten = set(self.aktive_knoten_ids())

@@ -1,22 +1,23 @@
 Hier schreibe ich meine Gedankengänge auf
 
-Die Knotenklasse soll mehrere methoden haben, zb für die optimierung nachher eine knoten löschen methode
- -> Die Knoten würde ich einfach als punkte quasi modellieren mit koordinaten x und z. wenn wir ein knotenobjekt erstellen (also nen knoten xd)
-    wird direkt festgelegt welche koordinaten, ob er aktiv ist, seine Freiheitsgrade und wie viel kraft auf ihn wirkt, das passiert bei der struktur Knotenklasse
-    in dessen methode gitter_erzeugen, wo an jede knoten id (k_id) ein knotenobjekt ins dictionary speicher. 
+Zu optimiernede Sachen: 
+--> Ich ließ mich evtl noch in die Dokumentation von Plotly rein, sehr coole sachen möglich (interaktiver Plot) evtl mach ich da noch was wenn sichs ausgeht !!
+--> Darstellung im Plot dynamische Größenanpassung wäre sinnvoll genauer zu implementieren für Knoten und Beschriftung, dass nicht alles aufeinanderklemmt 
+--> Kraftpfeil ebenfalls dynmisch Darstellen und Spitze am Knoten ansetzen nicht schaft am Knoten 
+--> Bei Auswahl Knotenspalte für lagerung sinnvolle auswahl für spalten implementieren nicht jeden knoten einzeln auswählen 
+--> Automatischen Bericht erzeugen wäre noch cool
+--> eventuell Darstellungen einzeln auch zeichnen lassen in Ansicht ? bessere übersicht 
+--> Plottitel nochmals überdenken, teilweise inkonsisent und nicht richtig 
+--> bei der Optimierung die Iterationsschritte eventuell direkt in Streamlit anzeigen sowie Massefortschritt 
+--> Default Lager sind okay, links unten festlager rechts unten loslager, aber default kraft evtl noch mittig oben in der Struktur ansetzten (bei gerader anzahl knotenreihe natürlich halbe kraft auf die zwei mittigen knoten oder?)
+--> Wenn noch Zeit ist überall schöne DocStrings einfügen? wirkt professioneller und schöner 
+--> TypeHints sind teilweise inkonsisent verwendet, da auch nochmal drüber schauen 
+--> SessionStates wäre noch sinnvoll auszulagern in eine eigene datei, allgemein eventuell alle tabs auslagern? wird viel viel übersichtlicher, auch struktur.py passen manche sachen nicht zusammen, wenn noch zeit ist auch hier auslagern?  
+--> eventuell Ordnerstruktur wo zusammengehörende dateien reingeschmissen werden? was meinst du? müssen wir natürlich nicht 
 
-Die Federklasse ist quasi das Pendant zur Knotenklasse, mit anderen Attributen aber geht auch drum eine Feder dann zu erstellen wenn sie aufgerufen wird.
- -> Aktuell habe ich beim erstellen eines Federobjekts als übergabe geschrieben, dass die Feder zwei Knoten braucht wo sie zwischen liegt, ihre Steifig-
-    keit, obwohl ich nicht weiß ob das relevant ist und wir da einen fixwert nehmen, weil wir davon ausgehen das der Körper überall gleich steif ist. und ich 
-    leg direkt fest ob eine feder aktiv ist oder nicht, für nachher wenn wir federn entfernen wollen. aber kann sein das wir das auch anders lösen müssen.
 
-Die Strukturklasse baut uns das ganze Gitter dann zusammen aus den Federn und den Knoten. 
- -> Ich erstell da mal zwei dictionaries für knoten und Federn zum abspeichern und das wir immer die id als Key übergeben. Dann die zwei zähler eben für die id dann. 
-    Für die größe vom Gitter habe ich mal einfach anzahl_x und z gemacht, wo wir die größe bissl einstellen können.
+aufgefallene sachen: 
+--> wenn ich bei optimierung auf 1 Schritt weiter klicke, und dann das ganze system automatisch lösen lasse, wird das nicht im verlaufplot so übernommen, eventuell nochmal nachschauen? 
+--> Fehlermeldung wäre noch sinnvoll bzw. info meldung wenn die zu erzielende Masse nicht erreicht wir (zu wenig iterationen, bzw struktur bricht auseinander)
+--> legende wird nicht schön platziert, überdeckt viel, eventuell legende manuell auslagern? 
 
-    Methode gitter_erzeugen_knoten
-     -> eigentlich selbsterklärend die funktion, einfach durch x und z iterieren und füllen unser dictionary mit den Knotenobjekten, also quasi unsere Gitterstruktur 
-
-Für die UI:
- -> Funktionen für alle Knoten koordinaten (koordinaten_knoten)
- -> FUnktion für alle verschobenen Knotenkoordinaten, also ursprüngliche Pos + u, evtl. auch skalieren, weil verschiebungen sehr klein sind

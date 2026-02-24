@@ -105,10 +105,22 @@ with st.sidebar.form("parameter_form"):
 
 #aus dem Form herausgezogen für dynamische Darstellung druch automatischen rerun für Federn und Knoten ID
 st.sidebar.markdown("---")
-st.sidebar.markdown("### Darstellung")
+st.sidebar.subheader("### Darstellung")
 skalierung = st.sidebar.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 0.1, 5.0, 1.0, 0.1, key="skalierung")
 federn_anzeigen = st.sidebar.checkbox("Federn anzeigen", value=False, key="federn_anzeigen")
 knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-Ids anzeigen (debug)", value=False, key="knoten_ids_anzeigen")
+
+#Heatmap Einstellungen in der Sidebar (wie Feder anzeigen IDs anzeigen)
+st.sidebar.markdown("---")
+st.sidebar.subheader("Heatmap")
+
+heatmap_modus = st.sidebar.radio("Heatmap-Modus", options=["Keine", "Verschiebung (Knoten)", "Federenergie", "Federkraft"], index=0, key="heatmap_modus")
+
+colorbar_anzeigen = st.sidebar.checkbox("Farblegende (Colorbar) anzeigen", value=True, key="colorbar_anzeigen")
+
+#Federn müssen natürlich sichtbar sein wenn man heatmap anschaltet, also checkbox richtig setzten 
+if heatmap_modus in ("Federenergie", "Federkraft"):
+    federn_anzeigen = True 
 
 #Struktur erzeugen (beim ersten Start, oder wenn User "Übernehmen" drückt)
 if uebernehmen or st.session_state.struktur is None:
@@ -143,7 +155,7 @@ with tab_ansicht:
 
     lastpfad = st.session_state.struktur.finde_lastpfad_knoten()
 
-    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad)
+    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad, heatmap_modus=heatmap_modus, colorbar_anzeigen=colorbar_anzeigen)
     
     st.pyplot(fig, use_container_width=True)
 
@@ -584,7 +596,9 @@ with tab_optimierung:
             titel="Optimierte Struktur (undeformiert)",
             federn_anzeigen=federn_anzeigen,
             knoten_ids_anzeigen=knoten_ids_anzeigen,
-            lastpfad_knoten=lastpfad,
+            lastpfad_knoten=lastpfad, 
+            heatmap_modus=heatmap_modus, 
+            colorbar_anzeigen=colorbar_anzeigen,
         )
         st.pyplot(fig_opt, use_container_width=True)
         

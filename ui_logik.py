@@ -3,17 +3,12 @@ from struktur import Struktur
 from optimierung import TopologieOptimierer
 import numpy as np
 from solver import solve
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt #https://matplotlib.org/stable/api/matplotlib_configuration_api.html
+import matplotlib.cm as cm 
+import matplotlib.colors as mcolors 
 import os
 import pickle
 from datetime import datetime
-
-# ToDo's für streamlit
-# schauen ob lagerung richtig hinhaut, plot sieht aus als wenns passt, aber iwi auch komisch
-# evtl mehr einstellmöglichkeiten, um linkes lager mal loslager zu machen anstatt nur rechts
-# vllt nicht auf 3 spalten aufteilen, damit plot größer ist evtl untereinander
-# optimierten plot noch anzeigen
-
 
 # Funktion um aktuelles System zu lösen
 def loese_aktuelle_struktur(struktur:Struktur):
@@ -38,54 +33,6 @@ def knoten_pos(struktur:Struktur, knoten_id: int, u=None, mapping=None, skalieru
         z += float(skalierung) * float(u[iz])
 
     return x, z 
-# Funktion um alle aktiven Knoten darzustellen
-#def plot_knoten(struktur, u=None, mapping=None, skalierung=1.0, title="Struktur", show_federn = True, show_ids = False):
-    #fig, ax = plt.subplots()
-    
-    #Hier federn undeformiert
-    #if show_federn:
-       # for f_id in struktur.aktive_federn_ids():
-       #     f = struktur.federn[f_id]
-      #      ki = struktur.knoten[f.knoten_i]
-     #       kj = struktur.knoten[f.knoten_j]
-    #        ax.plot([ki.x, kj.x], [ki.z, kj.z], linewidth=0.8)
-
-    # ursprüngliche Koordinaten
-   # xs, zs = struktur.koordinaten_knoten()
-   # ax.scatter(xs, zs, label="undeformiert")
-
-    # Verformte Koordinaten
-   # if u is not None and mapping is not None:
-        #Hier federn deformiert 
-       # if show_federn:
-      #      for f_id in struktur.aktive_federn_ids():
-     #           f = struktur.federn[f_id]
-    #            #falls in mapping noch nicht alle Knoten vorhanden sind
-   #             if f.knoten_i not in mapping or f.knoten_j not in mapping:
-  #                  continue
- #               ki = struktur.knoten[f.knoten_i]
-#                kj = struktur.knoten[f.knoten_j]
-
-      #          iix, iiz = mapping[f.knoten_i]
-     #           jjx, jjz = mapping[f.knoten_j]
-
-   #             xi = ki.x + skalierung * u[iix]
-    #            zi = ki.z + skalierung * u[iiz]
-  #              xj = kj.x + skalierung * u[jjx]
- #               zj = kj.z + skalierung * u[jjz]
-
-#                ax.plot([xi, xj], [zi, zj], linewidth = 0.8)
-
- #       xs_d, zs_d = struktur.koordinaten_knoten_mit_verschiebung(u, mapping, skalierung=skalierung)
-#        ax.scatter(xs_d, zs_d, label=f"deformiert (skalierung={skalierung})")
-
-    #ax.set_aspect("equal", adjustable="box")
-   # ax.set_title(title)
-  #  ax.set_xlabel("x")
- #   ax.set_ylabel("z")
-#    ax.legend()
-
-    #return fig
     
 # Struktur aufbauen, wie in der main.py die test_optimierung
 def struktur_bauen(nx, nz, dx, dz, lager_modus):
@@ -164,8 +111,107 @@ def sammle_plot_marker(struktur:Struktur):
 
     return festlager_ids, loslager_ids, kraft_ids
 
+#Funktionen für Heatmap
+def norm_min_max(werte: list[float]):
+    '''
+    Erzeugt eine Normalize-Objekt mit Min/Max-Werten für die Colormap
+    - Wert wird auf 0...1 Skaliert damit cmap() eine passende Farbe liefert
+    '''
 
-def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False, lastpfad_knoten=None):
+    if not werte: 
+        return None 
+    
+    vmin = float(min(werte))
+    vmax = float(max(werte))
+
+    #Wenn alle Werte gleich sind die Skala minimal aufteilen damit Matplotlib nicht zickt (division durch 0)
+    if np.isclose(vmin, vmax):
+        vmax = vmin + 1e-9
+
+    #Werte mit mcolors auf einen Farbbereich übersetzen
+    return mcolors.Normalize(vmin=vmin, vmax=vmax)
+
+def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0, titel = "Struktur", federn_anzeigen = False, knoten_ids_anzeigen = False, lastpfad_knoten=None, heatmap_modus = "Keine", colorbar_anzeigen = True):
+    
+    #Heatmap 
+    cmap = cm.get_cmap("viridis")
+
+    #Standardfarben wenn keine Heatmap aktiv ist 
+    farbe_knoten_undeformiert = "slategray"
+    farbe_knoten_deformiert = "dimgray"
+
+    #Transparent schalten (paramter alpha) nachdem gesolved wird, um was zu erkennen 
+    geloest = (u is not None) and (mapping is not None)
+    transparenz = 0.35 if geloest else 1.0
+
+    knoten_vals = None 
+    federn_vals = None 
+    norm = None 
+    colorbar_label = None 
+
+    heatmap_aktiv = (heatmap_modus != "Keine") and (u is not None) and (mapping is not None)
+
+    if heatmap_aktiv: 
+        if heatmap_modus == "Verschiebung (Knoten)":
+        #Knotenwerte hier |u|
+            knoten_vals = {}
+            for k_id in struktur.aktive_knoten_ids():
+                if k_id not in mapping: 
+                    continue
+                ix,iz = mapping[k_id]
+                ux = float(u[ix])
+                uz = float(u[iz])
+                knoten_vals[k_id] = (ux*ux + uz*uz) ** 0.5 
+
+            #Federwerte (mittelwert der Endknoten somit werden Federn und knoten gemeinsam eingefärbt)
+            federn_vals = {}
+            for f_id in struktur.aktive_federn_ids():
+                f = struktur.federn[f_id]
+                vi = knoten_vals.get(f.knoten_i)
+                vj = knoten_vals.get(f.knoten_j)
+
+                if vi is None or vj is None: 
+                    continue
+                federn_vals[f_id] = 0.5 * (vi + vj)
+
+            werte = list(knoten_vals.values()) + list(federn_vals.values())
+            norm = norm_min_max(werte)
+            colorbar_label = "|u|"
+
+        elif heatmap_modus == "Federenergie": 
+            federn_vals = struktur.feder_energien_aus_u(u, mapping)
+            knoten_vals = struktur.knoten_scores_aus_federenergien(federn_vals, mapping, modus="halb")
+
+            werte = list(knoten_vals.values()) + list(federn_vals.values())
+            norm = norm_min_max(werte)
+            colorbar_label = "E_feder"
+
+        elif heatmap_modus == "Federkraft":
+            federn_vals = struktur.feder_kraefte_aus_u(u, mapping, betrag=True)
+
+            #Knotenwerte aus Federkräften verwendung von max(|N|) aller anliegenden Federn 
+            angrenzende_kraefte = {k_id: [] for k_id in mapping.keys()}
+            for f_id, N in federn_vals.items():
+                f = struktur.federn[f_id]
+                if f.knoten_i in angrenzende_kraefte: 
+                    angrenzende_kraefte[f.knoten_i].append(N)
+                if f.knoten_j in angrenzende_kraefte: 
+                    angrenzende_kraefte[f.knoten_j].append(N)
+
+            knoten_vals = {}
+            for k_id, lst in angrenzende_kraefte.items():
+                if lst: 
+                    knoten_vals[k_id] = float(max(lst))
+
+            werte = list(knoten_vals.values()) + list(federn_vals.values())
+            norm = norm_min_max(werte)
+            colorbar_label = "|N_feder|"
+
+    #Hier noch ein hinweis im plot, falls Heatmap gewählt ist aber noch nicht Solve gedrückt wurde
+    if heatmap_modus != "Keine" and not heatmap_aktiv:
+        titel = f"{titel} (Heatmap erst nach Solve sichtbar!!)"
+
+    
     #Knoten zeichen und feder (optional)
     fig, ax = plt.subplots(figsize=(11, 4.5), dpi = 120)
     ax.grid(True, linewidth = 0.2)
@@ -177,11 +223,38 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
             f = struktur.federn[f_id]
             k_i = struktur.knoten[f.knoten_i]
             k_j = struktur.knoten[f.knoten_j]
-            ax.plot([k_i.x, k_j.x], [k_i.z, k_j.z], linewidth=0.8, color="black", zorder = 0)
+
+            #Standardfabre für die Federn undeformiert
+            col = farbe_knoten_undeformiert
+
+            #Falls Heatmap für die Federn aktiv ist Farbe aus federn_vals 
+            if federn_vals is not None and norm is not None: 
+                v = federn_vals.get(f_id)
+                if v is not None: 
+                    col = cmap(norm(v))
+
+            ax.plot([k_i.x, k_j.x], [k_i.z, k_j.z], linewidth=0.8, color=col, alpha=transparenz, zorder = 0)
 
     #undeformierte Knotenstruktur
-    xs, zs = struktur.koordinaten_knoten()
-    ax.scatter(xs, zs, s=18, label="Knoten undeformiert", zorder = 1)
+    xs, zs, cols = [], [], []
+
+    for k_id in struktur.aktive_knoten_ids():
+        k = struktur.knoten[k_id]
+        xs.append(k.x)
+        zs.append(k.z)
+
+        #Standardfabre bei keiner Heatmap 
+        col = farbe_knoten_undeformiert
+
+        #Falls Heatmap aktiv: Farbe aus knoten_vals
+        if knoten_vals is not None and norm is not None: 
+            v = knoten_vals.get(k_id)
+            if v is not None: 
+                col = cmap(norm(v))
+
+        cols.append(col)
+
+    ax.scatter(xs, zs, s=18, c=cols, alpha=transparenz, label="Knoten undeformiert", zorder = 1)
 
     #Marker ids
     festlager_ids, loslager_ids, kraft_ids = sammle_plot_marker(struktur)
@@ -222,27 +295,44 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
 
     if u is not None and mapping is not None: 
         #deformierte Knoten und Federn 
-        xs_d, zs_d = struktur.koordinaten_knoten_mit_verschiebung(u, mapping, skalierung=skalierung)
-        ax.scatter(xs_d, zs_d, s = 18, label = f"Knoten (deformiert x{skalierung})", zorder = 2)
+        xs_d, zs_d, cols_d = [], [], []
+
+        for k_id in struktur.aktive_knoten_ids():
+            x, z = knoten_pos(struktur, k_id, u, mapping, skalierung)
+
+            xs_d.append(x)
+            zs_d.append(z)
+
+            #Standardfarbe 
+            col = farbe_knoten_deformiert
+
+            #Falls Heatmap aktiv 
+            if knoten_vals is not None and norm is not None: 
+                v = knoten_vals.get(k_id)
+                if v is not None: 
+                    col = cmap(norm(v))
+
+            cols_d.append(col)
+
+        ax.scatter(xs_d, zs_d, s = 18, c=cols_d, edgecolors="black", linewidths=0.4, label = f"Knoten (deformiert x{skalierung})", zorder = 2)
 
         if federn_anzeigen: 
             for f_id in struktur.aktive_federn_ids():
                 feder = struktur.federn[f_id]
-                #kleine sicherheit falls feder nicht in mapping 
-                if feder.knoten_i not in mapping or feder.knoten_j not in mapping: 
-                    continue
-                k_i = struktur.knoten[feder.knoten_i]
-                k_j = struktur.knoten[feder.knoten_j]
 
-                iix, iiz = mapping[feder.knoten_i]
-                jjx, jjz = mapping[feder.knoten_j]
+                xi, zi = knoten_pos(struktur, feder.knoten_i, u, mapping, skalierung)
+                xj, zj = knoten_pos(struktur, feder.knoten_j, u, mapping, skalierung)
+                
+                #Standardfarbe Federn deformiert gleich wie knoten 
+                col = farbe_knoten_deformiert
 
-                xi = k_i.x + skalierung * u[iix]
-                zi = k_i.z + skalierung * u[iiz]
-                xj = k_j.x + skalierung * u[jjx]
-                zj = k_j.z + skalierung * u[jjz]
+                #Heatmapfarbe für Feder wenn aktiv 
+                if federn_vals is not None and norm is not None: 
+                    v = federn_vals.get(f_id)
+                    if v is not None:
+                        col = cmap(norm(v))
 
-                ax.plot([xi, xj], [zi, zj], linewidth = 0.8, color="gray", zorder = 1)
+                ax.plot([xi, xj], [zi, zj], linewidth = 0.8, color=col, zorder = 1)
 
         # Lastpfade anzeigen lassen
         if lastpfad_knoten is not None:
@@ -273,6 +363,11 @@ def plot_struktur(struktur:Struktur, u = None, mapping = None, skalierung = 1.0,
 
                 ax.plot(xs, zs, linewidth=2, color="red")
 
+    # Colorbar also die Farblegende
+    if colorbar_anzeigen and heatmap_aktiv and norm is not None:
+        mappable = cm.ScalarMappable(norm=norm, cmap=cmap)
+        mappable.set_array([])  
+        fig.colorbar(mappable, ax=ax, fraction=0.03, pad=0.02, label=colorbar_label)
 
     ax.set_aspect("equal", adjustable="box")
     ax.set_title(titel)
