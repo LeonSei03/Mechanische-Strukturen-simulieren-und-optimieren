@@ -100,13 +100,15 @@ with st.sidebar.form("parameter_form"):
     lager_modus = st.selectbox("Lager (Start)", ["Knoten einzeln", "Knotenspalte"])
 
     st.markdown("---")
-    st.header("Darstellung")
 
-    skalierung = st.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 1.0, 25.0, 1.0)
-    federn_anzeigen = st.checkbox("Federn anzeigen", value=False)
-    knoten_ids_anzeigen = st.checkbox("Knoten-Ids anzeigen (debug)", value=False)  
+    uebernehmen = st.form_submit_button("Neue Struktur erzeugen")
 
-    uebernehmen = st.form_submit_button("Übernehmen (Struktur neu erzeugen)")
+#aus dem Form herausgezogen für dynamische Darstellung druch automatischen rerun für Federn und Knoten ID
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Darstellung")
+skalierung = st.sidebar.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 0.1, 5.0, 1.0, 0.1, key="skalierung")
+federn_anzeigen = st.sidebar.checkbox("Federn anzeigen", value=False, key="federn_anzeigen")
+knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-Ids anzeigen (debug)", value=False, key="knoten_ids_anzeigen")
 
 #Struktur erzeugen (beim ersten Start, oder wenn User "Übernehmen" drückt)
 if uebernehmen or st.session_state.struktur is None:
@@ -118,7 +120,7 @@ if uebernehmen or st.session_state.struktur is None:
 
 struktur = st.session_state.struktur 
 
-#Text bevor die Struktur erstellt wird
+#Text bevor die Struktur erstellt wird falls noch keine da 
 if struktur is None:
     st.info("Erstellen Sie mit den Paramteren links in der Seitenleiste eine Struktur um daran arbeiten zu können!") 
     st.stop()
@@ -139,7 +141,7 @@ with tab_ansicht:
     col_a.metric("Startmasse (kg)", start_masse)
     col_b.metric("Aktuelle Masse (kg)", aktuelle_masse)
 
-    lastpfad = struktur.finde_lastpfad_knoten()
+    lastpfad = st.session_state.struktur.finde_lastpfad_knoten()
 
     fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad)
     
@@ -235,10 +237,11 @@ with tab_ansicht:
         st.markdown("## Lager")
 
         with st.form("lager_editor"):
-            lager_knoten = st.selectbox("Knoten für Lager", options=aktive_ids, index=aktive_ids.index(st.session_state.lager_knoten_id) if st.session_state.lager_knoten_id in aktive_ids else 0)#, key="lager_knoten_auswahl")
+            lager_knoten = st.selectbox("Knoten für Lager", options=aktive_ids, index=aktive_ids.index(st.session_state.lager_knoten_id) if st.session_state.lager_knoten_id in aktive_ids else 0)
 
             lager_typ_default = st.session_state.entwurf_lager.get(lager_knoten, "Kein Lager")
-            lager_typ = st.selectbox("Lagertyp für ausgewählten Knoten", ["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"], index=["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"].index(lager_typ_default))#, key=f"lager_typ_entwurf_{lager_knoten}")
+        
+            lager_typ = st.selectbox("Lagertyp für ausgewählten Knoten", ["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"], index=["Kein Lager", "Festlager", "Loslager (x frei, z fix)", "Loslager (x fix, z frei)"].index(lager_typ_default))
 
             c1, c2 = st.columns(2)
             speichern_lager = c1.form_submit_button("In Entwurf speichern")
