@@ -574,9 +574,10 @@ with tab_optimierung:
     if st.session_state.get("historie") is not None:
         st.markdown("### Optimierte Struktur (undeformiert)")
 
-        lastpfad = struktur.finde_lastpfad_knoten()
+        struktur_plot = st.session_state.struktur
+        lastpfad = struktur_plot.finde_lastpfad_knoten()
         fig_opt = plot_struktur(
-            struktur=st.session_state.struktur,
+            struktur=struktur_plot,
             u=None,
             mapping=None,
             skalierung=1.0,

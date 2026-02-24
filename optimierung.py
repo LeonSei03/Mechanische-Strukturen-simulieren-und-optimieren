@@ -96,11 +96,28 @@ class TopologieOptimierer:
         return scores, energien, u
 
     # Funktion um Knoten mit geringster Energie auszuwählen
-    def auswahl_knoten_zum_entfernen(self, scores, anzahl):
+    def auswahl_knoten_zum_entfernen(self, scores, anzahl, verboten=None):
+        
+        verboten = verboten or set()
+        kritisch = self._kritische_knoten_ids(include_neighbors=True)
+        
         kandidaten = [
             (k_id, score) for k_id, score in scores.items()
-            if not self.struktur.knoten_geschuetzt(k_id)
-        ]
+            if (not self.struktur.knoten_geschuetzt(k_id)) and (k_id not in kritisch) and (k_id not in verboten)]
+
+        # erst ohne Nachbarn, dann notfalls komplett ohne Lastpfad-Filter
+        if len(kandidaten) < anzahl:
+            kritisch = self._kritische_knoten_ids(include_neighbors=False)
+            kandidaten = [
+                (k_id, score) for k_id, score in scores.items()
+                if (not self.struktur.knoten_geschuetzt(k_id))
+                and (k_id not in kritisch) and (k_id not in verboten)]
+
+        if len(kandidaten) < anzahl:
+            kandidaten = [
+                (k_id, score) for k_id, score in scores.items()
+                if (not self.struktur.knoten_geschuetzt(k_id)) and (k_id not in verboten)]
+
         # kleinster Score zuerst
         kandidaten.sort(key=lambda x: x[1])
         return[k_id for k_id, _ in kandidaten[:anzahl]]
@@ -121,12 +138,13 @@ class TopologieOptimierer:
         
         # kleine debug ausgabe
         print("Kandidaten total:", len([k for k in scores.keys() if not self.struktur.knoten_geschuetzt(k)]))
+        verboten = set()
 
         # adaptives entfernen der knoten
         for n in range(max_entfernen, 0, -1):
 
             # knoten mit niedrigstem score aussuchen
-            entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n)
+            entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n, verboten=verboten)
             print("Versuche n =", n, "-> bekomme", len(entfernte_ids))
 
             if not entfernte_ids:
@@ -141,7 +159,7 @@ class TopologieOptimierer:
         
             # Bedingung prüfen ob lastknoten mit lagerknoten verbunden ist, sonst Rollback
             if not self.struktur.ist_verbunden_last_zu_lager():
-               # print("Rollback: Connectivity verletzt (Last nicht mehr mit Lager verbunden).") # debug ausgabe
+                print(f"[Rollback]  n={n} - Connectivity verletzt")
                 self.zustand_wiederherstellen(snapshot)
                 continue
 
@@ -151,6 +169,7 @@ class TopologieOptimierer:
 
             # falls Matrix singulär ist, passiert Rollback
             if u_test is None:
+                print(f"[Rollback]  n={n} - Matrix Singulär")
                 self.zustand_wiederherstellen(snapshot)
                 continue
 
@@ -159,14 +178,24 @@ class TopologieOptimierer:
 
             # wenn max Verschiebung zu groß ist Rollback
             if u_max is not None and max_u_val > u_max:
+                print(f"[Rollback]  n={n} - u_max überschritten ({max_u_val:.4e} > {u_max:.4e})")
                 self.zustand_wiederherstellen(snapshot)
+                # Kandidaten aus der Iteration nehmen
+                verboten.update(entfernte_ids)
+                
                 continue
             
+            # Inseln entfernen
+            inaktive_inseln = self._inaktive_inseln_entfernen()
+
             # gesamtenergie für verlauf Plot nachher speichern
             energien2, u2, mapping2, _ = self.feder_energien_berechnen()
             gesamtenergie = float(sum(energien2.values()))
 
-            return True, len(entfernte_ids), entfernte_ids, max_u_val, gesamtenergie
+            # Gesamte entfernten Knoten aufzählen
+            gesamt_entfernt = inaktive_inseln + len(entfernte_ids)
+
+            return True, gesamt_entfernt, entfernte_ids, max_u_val, gesamtenergie
 
         return False, 0, [], None, None
     
@@ -239,8 +268,26 @@ class TopologieOptimierer:
             self.abbruch_grund = "Max Iterationszahl erreicht"
             return False
         
+        # Zielmaterial nun auf Anzahl der Knoten übertragen, das wir bei erreichter Anzahl an Knoten abbrechen
+        ziel_knoten_menge = int(np.ceil(self.ziel_materialanteil * self.start_knotenanzahl))
+        entfernbare_knoten = aktive_knoten - ziel_knoten_menge
+        max_entfernen_bei_dieser_iter = min(self.max_entfernen_pro_iteration, max(0, entfernbare_knoten)) 
+
+        # nun Dynamische u_max Grenze, also relativ zur aktuellen Struktur, weil davor viele Abbrüche wegen dem u_max
+        out = self.feder_energien_berechnen()
+        if out[0] is None:
+            self.optimierung_beendet = True
+            self.abbruch_grund = "Struktur nicht lösbar (vor Schritt)"
+            return False
+
+        _, u_now, _, _ = out
+        max_u_now = float(np.max(np.abs(u_now)))
+        u_max_dynamisch = self.u_faktor * max_u_now
+
+        
+
         # Funktion "optimierungs_schritt_adaptiv_rollback" aufrufen und durchführen
-        ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=self.max_entfernen_pro_iteration, u_max=self.u_max_grenze)
+        ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=max_entfernen_bei_dieser_iter, u_max=u_max_dynamisch)
 
         # Verlauf speichern
         self.verlauf.append({
@@ -311,5 +358,92 @@ class TopologieOptimierer:
 
         return self.verlauf
     
+
+    def _hauptkomponente_ids(self):
+        """Bestimmt die Knoten-IDs die Last aufnehmen, also die mechanisch relevanten Knoten. 
+        Damit versuchen wir zu verhindern das random Knoten und Feder Stränge übrig bleiben nach dem Optimieren, welche gar keine Last aufnehmen.
+        """
+
+        # aktive Knoten holen
+        adj = self.struktur.nachbarschaft()
+
+        # Startknoten wählen, entweder bei Lastknoten, sonst bei erstem Lager
+        last_ids = self.struktur.last_knoten_id()
+        if last_ids:
+            start = last_ids[0]
+        else: 
+            lager_ids = self.struktur.lager_knoten_id()
+            start = lager_ids[0] if lager_ids else None
+
+        # falls wir keinen start haben
+        if start is None or start not in adj:
+            return set()
+
+        # mit BFS durch den Graphen
+        visited = {start}
+        queue = [start]
+
+        while queue:
+            v = queue.pop(0)
+            for nb in adj.get(v,[]):
+                if nb not in visited:
+                    visited.add(nb)
+                    queue.append(nb)
+        return visited
+
+    def _inaktive_inseln_entfernen(self):
+        """Soll alle aktiven Knoten, welche nicht zur Hauptkomponente gehören (also keine Last aufnehmen) entfernen
+        """
+        haupt = self._hauptkomponente_ids()
+
+        # falls keine inaktive Insel da ist, abbrechen
+        if not haupt:
+            return 0
+        
+        entfernt = 0
+        aktive_ids = list(self.struktur.aktive_knoten_ids())
+
+        for k_id in aktive_ids:
+            # wenn der Knoten nicht in der hauptkomponente ist kommt er weg
+            if k_id not in haupt:
+
+                if self.struktur.knoten_geschuetzt(k_id):
+                    continue
+
+                self.struktur.knoten_entfernen(k_id)
+                entfernt += 1
+        
+        return entfernt
+
+
+    def _kritische_knoten_ids(self, include_neighbors=True):
+        """Baut uns eine Menge von kritischen Knoten die wir in der Kandidatenauswahl nicht entfernen wollen.
+        """
+
+        kritisch = set()
+        pfade = self.struktur.finde_lastpfad_knoten()
+
+        if not pfade:
+            return kritisch
+        
+        # wenn ein einzelner Pfad als Liste zurückkommt
+        if isinstance(pfade, list) and pfade and isinstance(pfade[0], int):
+            pfad_liste = [pfade]
+        else:
+            pfad_liste = pfade
+
+        for pfad in pfad_liste:
+            kritisch.update(pfad)
+
+        if include_neighbors and kritisch:
+            adj = self.struktur.nachbarschaft()
+            nachbarn = set()
+            for k in kritisch:
+                for nb in adj.get(k, []):
+                    nachbarn.add(nb)
+            kritisch.update(nachbarn)
+
+        return kritisch
+
 
 
