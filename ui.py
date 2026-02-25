@@ -21,6 +21,11 @@ from ui_logik import (
     pruefe_lagerung_genug
 )
 
+from animation_aufnehmen import (
+    fig_zu_pil,
+    pil_liste_zu_gif
+)
+
 st.set_page_config(page_title="Balken Optimierung", layout="wide")
 st.title("Balkenbiegung - Simulation & Topologieoptimierung")
 
@@ -75,6 +80,13 @@ if "checkpoint_pfad" not in st.session_state:
 #Damit die Flash-Messages angezeigt werden überall 
 if "flash" not in st.session_state:
     st.session_state.flash = [] #Liste für (type und text)
+
+# Sessionstates für die Video Animation
+if "gif_frames" not in st.session_state:
+    st.session_state.gif_frames = []
+
+if "gif_recording" not in st.session_state:
+    st.session_state.gif_recording = False
 
 def flash(type: str, text: str):
     #type sind success, info, warning und error 
@@ -339,7 +351,7 @@ with tab_optimierung:
             "Ziel-Massenanteil (z.B 0,5 ist die Hälfte der Masse behalten)",
             0.05, 0.95, 0.50, 0.01
         )
-        max_iter_opt = st.number_input("Max. Iterationen", 1, 50, 5)
+        max_iter_opt = st.number_input("Max. Iterationen", 1, 70, 5)
         max_entfernen_pro_iter_opt = st.number_input(
             "max_entfernen_pro_iter (max Anzahl an Knoten welche pro iter versucht wird wegzumachen)",
             1, 200, 3
@@ -350,6 +362,8 @@ with tab_optimierung:
         )
 
         start_neu = st.form_submit_button("Optimierung starten")
+
+        st.session_state.gif_recording = st.checkbox("GIF Recording aktiv", value=st.session_state.gif_recording)
 
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
@@ -515,11 +529,48 @@ with tab_optimierung:
             st.session_state.optimierung_laeuft = False
             st.session_state.stop_angefordert = False
 
+            # nur jeden k-ten schritt als frame speichern
+            frame_stride = 2
+            max_frames = 250
+
             # Optimierung komplett durchlaufen (nicht stoppbar)
             while not st.session_state.optimierer.optimierung_beendet:
-                st.session_state.optimierer.optimierung_schritt()
+                ok = st.session_state.optimierer.optimierung_schritt()
 
-            # UI aktualisieren
+                # UI aktualisieren
+                st.session_state.historie = st.session_state.optimierer.verlauf
+                st.session_state.struktur = st.session_state.optimierer.struktur
+                st.session_state.u = None
+                st.session_state.mapping = None
+
+                # Frame aufnehmen, wenn Recording aktiv
+                if st.session_state.get("gif_recording", False):
+                    # Nur jeden k-ten Step speichern + max_frames cap
+                    if (st.session_state.optimierer.aktuelle_iteration % frame_stride == 0
+                            and len(st.session_state.gif_frames) < max_frames):
+
+                        struktur_plot = st.session_state.struktur
+                        lastpfad = struktur_plot.finde_lastpfad_knoten()
+                        fig_frame = plot_struktur(
+                            struktur=struktur_plot,
+                            u=None,
+                            mapping=None,
+                            skalierung=1.0,
+                            titel="Optimierte Struktur (undeformiert)",
+                            federn_anzeigen=federn_anzeigen,
+                            knoten_ids_anzeigen=knoten_ids_anzeigen,
+                            lastpfad_knoten=lastpfad,
+                            heatmap_modus=heatmap_modus,
+                            colorbar_anzeigen=colorbar_anzeigen,
+                        )
+
+                        img = fig_zu_pil(fig_frame, dpi=120)
+                        st.session_state.gif_frames.append(img)
+                
+                if ok is False:
+                    break
+            
+            # UI aktualisieren zur sicherheit
             st.session_state.historie = st.session_state.optimierer.verlauf
             st.session_state.struktur = st.session_state.optimierer.struktur
             st.session_state.u = None
@@ -538,18 +589,46 @@ with tab_optimierung:
         if st.session_state.optimierer is None:
             st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'!!")
         else:
-            # Nur ausführen wenn noch nicht beendet
-            if not st.session_state.optimierer.optimierung_beendet:
-                st.session_state.optimierer.optimierung_schritt()
 
-            # Ui zustände aktualisieren
-            st.session_state.historie = st.session_state.optimierer.verlauf
-            st.session_state.struktur = st.session_state.optimierer.struktur
-            
-            # Ansicht undeformiert halten
-            st.session_state.u = None
-            st.session_state.mapping = None
-            st.rerun() 
+            opt = st.session_state.optimierer
+
+            if opt.optimierung_beendet:
+                st.info(f"Optimierung ist bereits beendet: {opt.abbruch_grund}")
+
+            else:
+                ok = opt.optimierung_schritt()
+
+                # Ui zustände aktualisieren
+                st.session_state.historie = st.session_state.optimierer.verlauf
+                st.session_state.struktur = st.session_state.optimierer.struktur
+                
+                # Ansicht undeformiert halten
+                st.session_state.u = None
+                st.session_state.mapping = None
+
+                # Plot aus dem aktualisierten Zustand erstellen
+                struktur_plot = st.session_state.struktur
+                lastpfad = struktur_plot.finde_lastpfad_knoten()
+                fig = plot_struktur(
+                    struktur=struktur_plot,
+                    u=None,
+                    mapping=None,
+                    skalierung=1.0,
+                    titel="Optimierte Struktur (undeformiert)",
+                    federn_anzeigen=federn_anzeigen,
+                    knoten_ids_anzeigen=knoten_ids_anzeigen,
+                    lastpfad_knoten=lastpfad,
+                    heatmap_modus=heatmap_modus,
+                    colorbar_anzeigen=colorbar_anzeigen,
+                )
+                st.pyplot(fig, use_container_width=True)
+
+                # Frame speichern (nach dem Plot)
+                if st.session_state.gif_recording:
+                    img = fig_zu_pil(fig, dpi=120)
+                    st.session_state.gif_frames.append(img)
+
+                st.rerun() 
 
     if auto_weiter:
         if st.session_state.optimierer is None:
@@ -573,12 +652,32 @@ with tab_optimierung:
             st.session_state.u = None
             st.session_state.mapping = None
 
+            # gif frame aufnehmen für das video
+            if st.session_state.get("gif_recording", False):
+                struktur_plot = st.session_state.struktur
+                lastpfad = struktur_plot.finde_lastpfad_knoten()
+                fig_frame = plot_struktur(
+                    struktur=struktur_plot,
+                    u=None,
+                    mapping=None,
+                    skalierung=1.0,
+                    titel="Optimierte Struktur (undeformiert)",
+                    federn_anzeigen=federn_anzeigen,
+                    knoten_ids_anzeigen=knoten_ids_anzeigen,
+                    lastpfad_knoten=lastpfad,
+                    heatmap_modus=heatmap_modus,
+                    colorbar_anzeigen=colorbar_anzeigen,
+                )
+
+                # fig -> PIL image und speichern
+                img = fig_zu_pil(fig_frame, dpi=120)   # dein helper (oder fig_zu_pil)
+                st.session_state.gif_frames.append(img)
+
             # Fertig?
             if st.session_state.optimierer.optimierung_beendet:
                 st.session_state.optimierung_laeuft = False
                 st.success(f"Optimierung beendet: {st.session_state.optimierer.abbruch_grund}")
             else:
-                # wichtig: UI bleibt responsive, weil jeder Rerun nur 1 Schritt macht
                 st.rerun()
 
 
@@ -615,6 +714,42 @@ with tab_optimierung:
         file_name="optimierte_struktur.png",
         mime="image/png"
         )
+
+        colA, colB, colC = st.columns(3)
+        with colA:
+            if st.button("Alle letzten Frames löschen"):
+                st.session_state.gif_frames = []
+        with colB:
+            st.write(f"Frames: {len(st.session_state.gif_frames)}")
+        with colC:
+            gif_fps = st.slider("GIF Speed (FPS)", 1, 20, 8)
+
+        # GIF erstellen und Download
+        colG1, colG2 = st.columns(2)
+
+        with colG1:
+            if st.button("GIF erstellen"):
+                if len(st.session_state.gif_frames) == 0:
+                    st.warning("Keine Frames vorhanden. Erst Recording aktivieren und ein paar Schritte laufen lassen.")
+                else:
+                    duration_ms = int(1000 / gif_fps)
+                    gif_bytes = pil_liste_zu_gif(st.session_state.gif_frames, duration_ms=duration_ms)
+
+                    if gif_bytes is None:
+                        st.warning("GIF konnte nicht erstellt werden.")
+                    else:
+                        st.image(gif_bytes)
+                        st.download_button(
+                            label="GIF downloaden",
+                            data=gif_bytes,
+                            file_name="optimierung.gif",
+                            mime="image/gif"
+                        )
+
+        with colG2:
+            # Optional: Frames limitieren / Info
+            st.write(f"Aktuell gespeicherte Frames: **{len(st.session_state.gif_frames)}**")
+
 
 with tab_plots:
     st.subheader("Optimierungsverlauf")
