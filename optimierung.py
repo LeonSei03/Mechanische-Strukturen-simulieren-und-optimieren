@@ -23,6 +23,8 @@ class TopologieOptimierer:
         self.aktuelle_iteration = 0
         self.verlauf = []
 
+        # für den neuen optimierungsalgorithmus (aus der HUE mit de)
+
     # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
     # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
     def berechne_startverschiebung(self):
