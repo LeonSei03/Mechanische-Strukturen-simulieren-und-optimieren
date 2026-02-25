@@ -347,11 +347,19 @@ with tab_optimierung:
 
     # Optimierungs-Parameter gehören hierher (nicht in die Sidebar-Form)
     with st.form("optim_form"):
+        strategie_opt = st.selectbox(
+            "Optimierungsstrategie",
+            options=["energie", "dijkstra"],
+            format_func=lambda s: "Energiebasiert (lokal)" if s == "energie" else "Dijkstra-Lastpfad (global geschützt)"
+        )
+
+        dijkstra_ring_opt = st.slider("Dijkstra: Pfad-Schutz (Nachbarschaft)", 0, 2, 0)
+
         ziel_anteil_opt = st.slider(
             "Ziel-Massenanteil (z.B 0,5 ist die Hälfte der Masse behalten)",
             0.05, 0.95, 0.50, 0.01
         )
-        max_iter_opt = st.number_input("Max. Iterationen", 1, 70, 5)
+        max_iter_opt = st.number_input("Max. Iterationen", 1, 200, 5)
         max_entfernen_pro_iter_opt = st.number_input(
             "max_entfernen_pro_iter (max Anzahl an Knoten welche pro iter versucht wird wegzumachen)",
             1, 200, 3
@@ -399,6 +407,8 @@ with tab_optimierung:
             max_iter=int(max_iter_opt),
             max_entfernen_pro_iter=int(max_entfernen_pro_iter_opt),
             u_faktor=float(u_faktor_opt),
+            strategie=strategie_opt,
+            dijkstra_neighbor_ring=int(dijkstra_ring_opt)
         )
 
         # optimierer wird im Sessionstate gespeichert

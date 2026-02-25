@@ -1,6 +1,7 @@
 from solver import solve
 import numpy as np
 from struktur import Struktur
+from graph_strategien import dijkstra_lastpfad, knoten_in_ring_nachbarschaft
 
 class TopologieOptimierer:
     def __init__(self, struktur):
@@ -23,7 +24,10 @@ class TopologieOptimierer:
         self.aktuelle_iteration = 0
         self.verlauf = []
 
-        # für den neuen optimierungsalgorithmus (aus der HUE mit de)
+        # für den neuen optimierungsalgorithmus (aus der HUE mit den streckenoptimierungen von einer Stadt zur anderen)
+        self.strategie = "dijkstra"
+        self.dijkstra_neighbor_ring = 2
+        self.dijkstra_eps = 1e-12
 
     # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
     # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
@@ -95,30 +99,41 @@ class TopologieOptimierer:
             if j in scores:
                 scores[j] += 0.5 * E
         
-        return scores, energien, u
+        return scores, energien, u, mapping
 
     # Funktion um Knoten mit geringster Energie auszuwählen
-    def auswahl_knoten_zum_entfernen(self, scores, anzahl, verboten=None):
+    def auswahl_knoten_zum_entfernen(self, scores, anzahl, energien=None, u=None, mapping=None, verboten=None):
         
-        verboten = verboten or set()
-        kritisch = self._kritische_knoten_ids(include_neighbors=True)
+        kritisch = self._kritische_knoten_ids_nach_strategie(energien, u=u, mapping=mapping)
         
+        if verboten is None:
+            verboten = set()
+
         kandidaten = [
             (k_id, score) for k_id, score in scores.items()
-            if (not self.struktur.knoten_geschuetzt(k_id)) and (k_id not in kritisch) and (k_id not in verboten)]
+            if not self.struktur.knoten_geschuetzt(k_id) and (k_id not in kritisch) and (k_id not in verboten)]
 
         # erst ohne Nachbarn, dann notfalls komplett ohne Lastpfad-Filter
-        if len(kandidaten) < anzahl:
-            kritisch = self._kritische_knoten_ids(include_neighbors=False)
-            kandidaten = [
-                (k_id, score) for k_id, score in scores.items()
-                if (not self.struktur.knoten_geschuetzt(k_id))
-                and (k_id not in kritisch) and (k_id not in verboten)]
+        if len(kandidaten) < anzahl and self.strategie == "dijkstra":
 
+            # nur einen Pfad schützen
+            ring_backup = self.dijkstra_neighbor_ring
+            self.dijkstra_neighbor_ring = 0
+            
+            kritisch = self._kritische_knoten_ids_nach_strategie(energien, u=u, mapping=mapping)
+            self.dijkstra_neighbor_ring = ring_backup
+
+            kandidaten = [
+                (k_id, score) for k_id, score in scores.items()
+                if not self.struktur.knoten_geschuetzt(k_id)
+                and (k_id not in kritisch)
+                and (k_id not in verboten)]
+
+        # letzter Fallback
         if len(kandidaten) < anzahl:
             kandidaten = [
                 (k_id, score) for k_id, score in scores.items()
-                if (not self.struktur.knoten_geschuetzt(k_id)) and (k_id not in verboten)]
+                if not self.struktur.knoten_geschuetzt(k_id)]
 
         # kleinster Score zuerst
         kandidaten.sort(key=lambda x: x[1])
@@ -133,7 +148,7 @@ class TopologieOptimierer:
         print("max_entfernen =", max_entfernen)
         
         # knotenscores berechnen basiert auf energie der federn
-        scores, energien, u = self.knoten_scores_berechnen()
+        scores, energien, u, mapping = self.knoten_scores_berechnen()
 
         if scores is None:
             return False, 0, [], None, None
@@ -146,7 +161,7 @@ class TopologieOptimierer:
         for n in range(max_entfernen, 0, -1):
 
             # knoten mit niedrigstem score aussuchen
-            entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n, verboten=verboten)
+            entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n, energien=energien, u=u, mapping=mapping, verboten=verboten)
             print("Versuche n =", n, "-> bekomme", len(entfernte_ids))
 
             if not entfernte_ids:
@@ -222,7 +237,7 @@ class TopologieOptimierer:
             feder.feder_aktiv = (f_id in aktive_federn)
 
     # Funktion welche uns einen neuen optimierungslauf initialisiert
-    def optimierung_initialisieren(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5):
+    def optimierung_initialisieren(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5, strategie="energie", dijkstra_neighbor_ring=0):
         # Anzahl aktiver Knoten am Anfang
         self.start_knotenanzahl = len(self.struktur.aktive_knoten_ids())
 
@@ -244,6 +259,9 @@ class TopologieOptimierer:
         self.optimierung_beendet = False
         self.abbruch_grund = None
         self.optimierung_initialisiert = True
+
+        self.strategie = strategie
+        self.dijkstra_neighbor_ring = dijkstra_neighbor_ring
 
     # genau eine optimierung ausführen und speichern
     def optimierung_schritt(self):
@@ -419,8 +437,7 @@ class TopologieOptimierer:
 
 
     def _kritische_knoten_ids(self, include_neighbors=True):
-        """Baut uns eine Menge von kritischen Knoten die wir in der Kandidatenauswahl nicht entfernen wollen.
-        """
+        """Baut uns eine Menge von kritischen Knoten die wir in der Kandidatenauswahl nicht entfernen wollen."""
 
         kritisch = set()
         pfade = self.struktur.finde_lastpfad_knoten()
@@ -446,6 +463,25 @@ class TopologieOptimierer:
             kritisch.update(nachbarn)
 
         return kritisch
+    
+    def _kritische_knoten_ids_nach_strategie(self, energien=None, u=None, mapping=None):
+        """Gibt uns die Knoten zurück die nicht entfernt werden dürfen."""
 
+        if self.strategie != "dijkstra" or energien is None or u is None or mapping is None:
+            return set()
 
+        kraefte = self.struktur.feder_kraefte_aus_u(u, mapping, betrag=True)
+        
+        # Dijsktra Pfad berechnen
+        pfad = dijkstra_lastpfad(self.struktur, kraefte, eps=self.dijkstra_eps, weight_mode="inv_force")
 
+        if not pfad:
+            return set()
+        
+        kritisch = set(pfad)
+
+        # Optional Nachbarschaft hinzufügen
+        if self.dijkstra_neighbor_ring > 0:
+            kritisch = knoten_in_ring_nachbarschaft(self.struktur, kritisch, ring=self.dijkstra_neighbor_ring)
+
+        return kritisch
