@@ -12,7 +12,6 @@ from checkpoint_database import (
 
 from ui_logik import (
     struktur_bauen,
-    plot_struktur,
     loese_aktuelle_struktur,
     entwurf_auf_struktur_anwenden,
     reset_ui_state_bei_neuer_struktur,
@@ -20,6 +19,8 @@ from ui_logik import (
     checkpoint_laden,
     pruefe_lagerung_genug
 )
+
+from ui_plots import UIPlots
 
 from animation_aufnehmen import (
     fig_zu_pil,
@@ -29,6 +30,7 @@ from animation_aufnehmen import (
 st.set_page_config(page_title="Balken Optimierung", layout="wide")
 st.title("Balkenbiegung - Simulation & Topologieoptimierung")
 
+plotter = UIPlots()
 
 #Session states initialisieren damit alles stabil bleibt 
 if "entwurf_kraefte" not in st.session_state:
@@ -117,10 +119,11 @@ with st.sidebar.form("parameter_form"):
 
 #aus dem Form herausgezogen für dynamische Darstellung druch automatischen rerun für Federn und Knoten ID
 st.sidebar.markdown("---")
-st.sidebar.subheader("### Darstellung")
+st.sidebar.subheader("Darstellung")
 skalierung = st.sidebar.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 0.1, 5.0, 1.0, 0.1, key="skalierung")
 federn_anzeigen = st.sidebar.checkbox("Federn anzeigen", value=False, key="federn_anzeigen")
 knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-Ids anzeigen (debug)", value=False, key="knoten_ids_anzeigen")
+legende_anzeigen = st.sidebar.checkbox("Legende anzeigen", value=True, key="legende_anzeigen")
 
 #Heatmap Einstellungen in der Sidebar (wie Feder anzeigen IDs anzeigen)
 st.sidebar.markdown("---")
@@ -167,9 +170,9 @@ with tab_ansicht:
 
     lastpfad = st.session_state.struktur.finde_lastpfad_knoten()
 
-    fig = plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad, heatmap_modus=heatmap_modus, colorbar_anzeigen=colorbar_anzeigen)
+    fig = plotter.plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad, heatmap_modus=heatmap_modus, colorbar_anzeigen=colorbar_anzeigen, legende_anzeigen=legende_anzeigen)
     
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width="stretch")
 
     # Plot als PNG herunterladen
     puffer = io.BytesIO()
@@ -251,7 +254,7 @@ with tab_ansicht:
                 "Fx": fx,
                 "Fz": fz,
              })
-            st.dataframe(daten, use_container_width=True, hide_index=True)
+            st.dataframe(daten, width="stretch", hide_index=True)
         else:
             st.info("Keine Kraft-Entwürfe vorhanden. Default Werte eingestellt !!")
 
@@ -295,7 +298,7 @@ with tab_ansicht:
                     "z": k.z,
                     "Lager": lager_typ,
                 })
-            st.dataframe(daten, use_container_width=True, hide_index=True)
+            st.dataframe(daten, width="stretch", hide_index=True)
         else:
             st.info("Keine Lager-Entwürfe vorhanden. Default Werte eingestellt !!")
 
@@ -376,26 +379,26 @@ with tab_optimierung:
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
     with col1:
-        weiter = st.button("Weiter (1 Schritt)", use_container_width=True)
+        weiter = st.button("Weiter (1 Schritt)", width="stretch")
 
     # das man komplett einmal Optimieren kann in schnell 
     with col2:
-        schnell_durchlaufen = st.button("Optimierung komplett durchlaufen (schnell, nicht stoppbar)", use_container_width=True)
+        schnell_durchlaufen = st.button("Optimierung komplett durchlaufen (schnell, nicht stoppbar)", width="stretch")
 
     with col3:
-        auto_weiter = st.button("Auto-Weiter", use_container_width=True)
+        auto_weiter = st.button("Auto-Weiter", width="stretch")
 
     with col4:
-        stop = st.button("Stop", use_container_width=True)
+        stop = st.button("Stop", width="stretch")
 
     with col5:
-        speichern = st.button("Speichern", use_container_width=True)
+        speichern = st.button("Speichern", width="stretch")
 
     with col6:
-        laden = st.button("Laden / Fortsetzen", use_container_width=True)
+        laden = st.button("Laden / Fortsetzen", width="stretch")
 
     with col7:
-        loeschen = st.button("Checkpoint löschen", use_container_width=True)
+        loeschen = st.button("Checkpoint löschen", width="stretch")
 
     if start_neu:
         # neuer optimierer mit aktueller Struktur erzeugen
@@ -561,7 +564,7 @@ with tab_optimierung:
 
                         struktur_plot = st.session_state.struktur
                         lastpfad = struktur_plot.finde_lastpfad_knoten()
-                        fig_frame = plot_struktur(
+                        fig_frame = plotter.plot_struktur(
                             struktur=struktur_plot,
                             u=None,
                             mapping=None,
@@ -572,6 +575,7 @@ with tab_optimierung:
                             lastpfad_knoten=lastpfad,
                             heatmap_modus=heatmap_modus,
                             colorbar_anzeigen=colorbar_anzeigen,
+                            legende_anzeigen=legende_anzeigen,
                         )
 
                         img = fig_zu_pil(fig_frame, dpi=120)
@@ -619,7 +623,7 @@ with tab_optimierung:
                 # Plot aus dem aktualisierten Zustand erstellen
                 struktur_plot = st.session_state.struktur
                 lastpfad = struktur_plot.finde_lastpfad_knoten()
-                fig = plot_struktur(
+                fig = plotter.plot_struktur(
                     struktur=struktur_plot,
                     u=None,
                     mapping=None,
@@ -630,8 +634,9 @@ with tab_optimierung:
                     lastpfad_knoten=lastpfad,
                     heatmap_modus=heatmap_modus,
                     colorbar_anzeigen=colorbar_anzeigen,
+                    legende_anzeigen=legende_anzeigen,
                 )
-                st.pyplot(fig, use_container_width=True)
+                st.pyplot(fig, width="stretch")
 
                 # Frame speichern (nach dem Plot)
                 if st.session_state.gif_recording:
@@ -666,7 +671,7 @@ with tab_optimierung:
             if st.session_state.get("gif_recording", False):
                 struktur_plot = st.session_state.struktur
                 lastpfad = struktur_plot.finde_lastpfad_knoten()
-                fig_frame = plot_struktur(
+                fig_frame = plotter.plot_struktur(
                     struktur=struktur_plot,
                     u=None,
                     mapping=None,
@@ -677,6 +682,7 @@ with tab_optimierung:
                     lastpfad_knoten=lastpfad,
                     heatmap_modus=heatmap_modus,
                     colorbar_anzeigen=colorbar_anzeigen,
+                    legende_anzeigen=legende_anzeigen,
                 )
 
                 # fig -> PIL image und speichern
@@ -697,7 +703,7 @@ with tab_optimierung:
 
         struktur_plot = st.session_state.struktur
         lastpfad = struktur_plot.finde_lastpfad_knoten()
-        fig_opt = plot_struktur(
+        fig_opt = plotter.plot_struktur(
             struktur=struktur_plot,
             u=None,
             mapping=None,
@@ -708,8 +714,9 @@ with tab_optimierung:
             lastpfad_knoten=lastpfad, 
             heatmap_modus=heatmap_modus, 
             colorbar_anzeigen=colorbar_anzeigen,
+            legende_anzeigen=legende_anzeigen,
         )
-        st.pyplot(fig_opt, use_container_width=True)
+        st.pyplot(fig_opt, width="stretch")
         
         # Plot als PNG herunterladen
         puffer = io.BytesIO()
@@ -787,7 +794,7 @@ with tab_plots:
         plt.ylabel("Gesamtenergie")
         plt.title("Gesamtenergie über Iterationen")
         plt.grid(True)
-        st.pyplot(fig1, use_container_width=True)
+        st.pyplot(fig1, width="stretch")
 
     with col2:
         # Plot vom Materialanteil
@@ -797,7 +804,7 @@ with tab_plots:
         plt.ylabel("Materialanteil")
         plt.title("Materialanteil über Iterationen")
         plt.grid(True)
-        st.pyplot(fig2, use_container_width=True)
+        st.pyplot(fig2, width="stretch")
 
     with col3:
         # Plot der aktiven Knoten
@@ -807,7 +814,7 @@ with tab_plots:
         plt.ylabel("Aktive Knoten")
         plt.title("Aktive Knoten über Iterationen")
         plt.grid(True)
-        st.pyplot(fig3, use_container_width=True)
+        st.pyplot(fig3, width="stretch")
 
         if any(v is not None for v in max_u):
             fig4 = plt.figure()
@@ -818,6 +825,6 @@ with tab_plots:
             plt.title("Maximale Verschiebung vs. Grenze")
             plt.grid(True)
             plt.legend()
-            st.pyplot(fig4, use_container_width=True)
+            st.pyplot(fig4, width="stretch")
 
     plt.close("all")
