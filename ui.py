@@ -21,6 +21,7 @@ from ui_logik import (
 )
 
 from ui_plots import UIPlots
+from ui_sessionstate_flash import init_session_state, flash, show_flash
 
 from animation_aufnehmen import (
     fig_zu_pil,
@@ -32,74 +33,7 @@ st.title("Balkenbiegung - Simulation & Topologieoptimierung")
 
 plotter = UIPlots()
 
-#Session states initialisieren damit alles stabil bleibt 
-if "entwurf_kraefte" not in st.session_state:
-    st.session_state.entwurf_kraefte = {} #Knoten_id : (fx, fz)
-
-if "entwurf_lager" not in st.session_state:
-    st.session_state.entwurf_lager = {} #Knoten_id: lager_typ_string
-
-if "kraft_knoten_id" not in st.session_state:
-    st.session_state.kraft_knoten_id = None
-
-if "lager_knoten_id" not in st.session_state:
-    st.session_state.lager_knoten_id = None
-
-if "struktur" not in st.session_state:
-    st.session_state.struktur = None
-
-if "u" not in st.session_state:
-    st.session_state.u = None 
-
-if "mapping" not in st.session_state:
-    st.session_state.mapping = None 
-
-if "historie" not in st.session_state:
-    st.session_state.historie = None 
-
-if "ausgewaehlter_knoten_id" not in st.session_state:
-    st.session_state.ausgewaehlter_knoten_id = None 
-
-if "last_knoten_id" not in st.session_state:
-    st.session_state.last_knoten_id = None 
-
-if "start_masse" not in st.session_state: 
-    st.session_state.start_masse = None 
-
-# sessionstates für optimierung
-if "optimierer" not in st.session_state:
-    st.session_state.optimierer = None
-
-if "optimierung_laeuft" not in st.session_state:
-    st.session_state.optimierung_laeuft = False
-
-if "stop_angefordert" not in st.session_state:
-    st.session_state.stop_angefordert = False
-
-if "checkpoint_pfad" not in st.session_state:
-    st.session_state.checkpoint_pfad = None
-
-#Damit die Flash-Messages angezeigt werden überall 
-if "flash" not in st.session_state:
-    st.session_state.flash = [] #Liste für (type und text)
-
-# Sessionstates für die Video Animation
-if "gif_frames" not in st.session_state:
-    st.session_state.gif_frames = []
-
-if "gif_recording" not in st.session_state:
-    st.session_state.gif_recording = False
-
-def flash(type: str, text: str):
-    #type sind success, info, warning und error 
-    st.session_state.flash.append((type, text))
-
-def show_flash():
-    if st.session_state.flash:
-        for type, text in st.session_state.flash:
-            getattr(st, type)(text)
-        st.session_state.flash.clear()
-
+init_session_state()
 show_flash()
 
 # Seitenleiste und alle Parameter die wir brauchen abfragen und als FORM, damit änderungen erst bei klick übernommen werden 
@@ -120,9 +54,9 @@ with st.sidebar.form("parameter_form"):
 #aus dem Form herausgezogen für dynamische Darstellung druch automatischen rerun für Federn und Knoten ID
 st.sidebar.markdown("---")
 st.sidebar.subheader("Darstellung")
-skalierung = st.sidebar.slider("Deformations-Skala (Dehnung skalieren damits anschaulicher ist)", 0.1, 5.0, 1.0, 0.1, key="skalierung")
+skalierung = st.sidebar.slider("Skalierung Deformation", 0.1, 5.0, 1.0, 0.1, key="skalierung")
 federn_anzeigen = st.sidebar.checkbox("Federn anzeigen", value=False, key="federn_anzeigen")
-knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-Ids anzeigen (debug)", value=False, key="knoten_ids_anzeigen")
+knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-IDs anzeigen", value=False, key="knoten_ids_anzeigen")
 legende_anzeigen = st.sidebar.checkbox("Legende anzeigen", value=True, key="legende_anzeigen")
 
 #Heatmap Einstellungen in der Sidebar (wie Feder anzeigen IDs anzeigen)
@@ -424,14 +358,16 @@ with tab_optimierung:
         st.session_state.u = None
         st.session_state.mapping = None
 
-        st.success("Optimierung initialisiert. Du kannst jetzt Schrittweise laufen lassen.")
+        flash("success", "Optimierung initalisiert. Du kannst jetzt Schrittweise laufen lassen.")
+        #st.success("Optimierung initialisiert. Du kannst jetzt Schrittweise laufen lassen.")
         st.rerun()
     
     # zwischen zwei Iterationen greift
     if stop: 
         st.session_state.stop_angefordert = True
         st.session_state.optimierung_laeuft = False
-        st.info("Stop angefordert. Optimierung hält nach dem aktuellen Schritt an.")
+        flash("info", "Stop angefordert. Optimierung hält nach dem aktuellen Schritt an.")
+        #st.info("Stop angefordert. Optimierung hält nach dem aktuellen Schritt an.")
         st.rerun()
 
     # checkpoint abspeichern
@@ -519,6 +455,7 @@ with tab_optimierung:
             st.session_state.u = None
             st.session_state.mapping = None
 
+            flash("success", "Checkpoint geladen. Du kannst jetzt damit arbeiten.")
             st.success("Checkpoint geladen. Du kannst jetzt weiterlaufen.")
             st.rerun()
 
@@ -590,10 +527,11 @@ with tab_optimierung:
             st.session_state.u = None
             st.session_state.mapping = None
 
-            st.success(
-                f"Optimierung (Schnellmodus) beendet: "
-                f"{st.session_state.optimierer.abbruch_grund}"
-            )
+            flash("success", f"Optimirter Schnellmodus beendet: {st.session_state.optimierer.abbruch_grund}")
+            #st.success(
+            #    f"Optimierung (Schnellmodus) beendet: "
+            #    f"{st.session_state.optimierer.abbruch_grund}"
+            #)
 
             st.rerun()
 
