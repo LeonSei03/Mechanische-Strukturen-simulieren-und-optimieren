@@ -29,6 +29,11 @@ class TopologieOptimierer:
         self.dijkstra_neighbor_ring = 2
         self.dijkstra_eps = 1e-12
 
+        # Problem das die Dehnung explodiert, nun ein cap, damit diese "explosion" nicht passiert
+        self.u_cap_factor = 5.0 # hier nun zb. 5 Mal die Startverschiebung als Grenze
+        self.u_alpha = 0.8
+        self.u_max_running = None
+
     # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
     # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
     def berechne_startverschiebung(self):
@@ -263,6 +268,8 @@ class TopologieOptimierer:
         self.strategie = strategie
         self.dijkstra_neighbor_ring = dijkstra_neighbor_ring
 
+        self.u_max_running = self.u_max_grenze 
+
     # genau eine optimierung ausführen und speichern
     def optimierung_schritt(self):
         
@@ -302,12 +309,24 @@ class TopologieOptimierer:
 
         _, u_now, _, _ = out
         max_u_now = float(np.max(np.abs(u_now)))
-        u_max_dynamisch = self.u_faktor * max_u_now
 
-        
+        # Kandidat (dynamisch)
+        u_candidate = self.u_faktor * max_u_now
+
+        # Hard cap relativ zum Start
+        u_cap = self.u_cap_factor * self.u_start_max
+        u_candidate = min(u_candidate, u_cap)
+
+        # Smoothing (damit es nicht sprunghaft hochgeht)
+        if self.u_max_running is None:
+            self.u_max_running = u_candidate
+        else:
+            self.u_max_running = self.u_alpha * self.u_max_running + (1.0 - self.u_alpha) * u_candidate
+
+        u_max_effektiv = self.u_max_running
 
         # Funktion "optimierungs_schritt_adaptiv_rollback" aufrufen und durchführen
-        ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=max_entfernen_bei_dieser_iter, u_max=u_max_dynamisch)
+        ok, entfernt_n, entfernte_ids, max_u, gesamtenergie = self.optimierungs_schritt_adaptiv_rollback(max_entfernen=max_entfernen_bei_dieser_iter, u_max=u_max_effektiv)
 
         # Verlauf speichern
         self.verlauf.append({
@@ -318,7 +337,7 @@ class TopologieOptimierer:
             "entfernte_ids": entfernte_ids,
             "max_u": max_u,
             "gesamtenergie": gesamtenergie,
-            "u_max_grenze": self.u_max_grenze
+            "u_max_grenze": float(u_max_effektiv)
         })
 
         self.aktuelle_iteration += 1
