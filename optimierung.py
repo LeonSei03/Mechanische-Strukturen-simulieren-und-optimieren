@@ -4,8 +4,9 @@ from struktur import Struktur
 from graph_strategien import dijkstra_lastpfad, knoten_in_ring_nachbarschaft
 
 class TopologieOptimierer:
-    def __init__(self, struktur):
+    def __init__(self, struktur, protokoll=None):
         self.struktur: Struktur = struktur
+        self.protokoll = protokoll
 
         # für step/ fortsetzen
         self.optimierung_initialisiert = False
@@ -33,6 +34,14 @@ class TopologieOptimierer:
         self.u_cap_factor = 3.0 # hier nun zb. 5 Mal die Startverschiebung als Grenze
         self.u_alpha = 0.3
         self.u_max_running = None
+
+    def _protokollieren(self, text: str):
+        """Schreibt uns eine Meldung ins ui protokoll falls vorhanden"""
+        if self.protokoll is not None:
+            self.protokoll.protokollieren(text)
+        else:
+            print(text)
+
 
     # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
     # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
@@ -150,8 +159,9 @@ class TopologieOptimierer:
     # versuchen 5Knoten zu entfernen, wenn danach K singulär ist oder u_max zu groß ist passiert ein Rollback und sind haben wieder den stand von vor den 5 gelöschten knoten
     # dann probieren wir 4 knoten zu löschen usw -> adaptiv
     def optimierungs_schritt_adaptiv_rollback(self, max_entfernen, u_max=None):
-        print("max_entfernen =", max_entfernen)
-        
+        # print("max_entfernen =", max_entfernen)
+        self._protokollieren(f"max_entfernen = {max_entfernen}")
+
         # knotenscores berechnen basiert auf energie der federn
         scores, energien, u, mapping = self.knoten_scores_berechnen()
 
@@ -159,7 +169,9 @@ class TopologieOptimierer:
             return False, 0, [], None, None
         
         # kleine debug ausgabe
-        print("Kandidaten total:", len([k for k in scores.keys() if not self.struktur.knoten_geschuetzt(k)]))
+        # print("Kandidaten total:", len([k for k in scores.keys() if not self.struktur.knoten_geschuetzt(k)]))
+        self._protokollieren(f"Kandidaten Total: {len([k for k in scores.keys() if not self.struktur.knoten_geschuetzt(k)])}")
+        
         verboten = set()
 
         # adaptives entfernen der knoten
@@ -167,8 +179,9 @@ class TopologieOptimierer:
 
             # knoten mit niedrigstem score aussuchen
             entfernte_ids = self.auswahl_knoten_zum_entfernen(scores, n, energien=energien, u=u, mapping=mapping, verboten=verboten)
-            print("Versuche n =", n, "-> bekomme", len(entfernte_ids))
-
+            # print("Versuche n =", n, "-> bekomme", len(entfernte_ids))
+            self._protokollieren(f"Versuche n={n} | bekomme: {len(entfernte_ids)}")
+            
             if not entfernte_ids:
                 continue
             
@@ -181,7 +194,8 @@ class TopologieOptimierer:
         
             # Bedingung prüfen ob lastknoten mit lagerknoten verbunden ist, sonst Rollback
             if not self.struktur.ist_verbunden_last_zu_lager():
-                print(f"[Rollback]  n={n} - Connectivity verletzt")
+                #print(f"[Rollback]  n={n} - Connectivity verletzt")
+                self._protokollieren(f"[Rollback] n={n} - Last ist nicht mehr mit Lager verbunden")
                 self.zustand_wiederherstellen(snapshot)
                 continue
 
@@ -191,7 +205,8 @@ class TopologieOptimierer:
 
             # falls Matrix singulär ist, passiert Rollback
             if u_test is None:
-                print(f"[Rollback]  n={n} - Matrix Singulär")
+                # print(f"[Rollback]  n={n} - Matrix Singulär")
+                self._protokollieren(f"[Rollback] n={n} - Matrix ist Singulär")
                 self.zustand_wiederherstellen(snapshot)
                 continue
 
@@ -200,7 +215,8 @@ class TopologieOptimierer:
 
             # wenn max Verschiebung zu groß ist Rollback
             if u_max is not None and max_u_val > u_max:
-                print(f"[Rollback]  n={n} - u_max überschritten ({max_u_val:.4e} > {u_max:.4e})")
+                # print(f"[Rollback]  n={n} - u_max überschritten ({max_u_val:.4e} > {u_max:.4e})")
+                self._protokollieren(f"[Rollback] n={n} - u_max ist überschritten " f"({max_u_val:.4e} > {u_max:.4e})")
                 self.zustand_wiederherstellen(snapshot)
                 # Kandidaten aus der Iteration nehmen
                 verboten.update(entfernte_ids)
@@ -286,16 +302,24 @@ class TopologieOptimierer:
         aktive_knoten = len(self.struktur.aktive_knoten_ids())
         materialanteil = aktive_knoten / self.start_knotenanzahl
 
+        self._protokollieren(
+            f"\n=== Iteration {self.aktuelle_iteration} ===\n"
+            f"Aktive Knoten: {aktive_knoten}/{self.start_knotenanzahl} "
+            f"({materialanteil*100:.1f}%)"
+        )
+
         # wenn Zielmaterial erreichr wird
         if materialanteil <= self.ziel_materialanteil:
             self.optimierung_beendet = True
             self.abbruch_grund = "Ziel Materialanteil erreicht"
+            self._protokollieren(f"[Abbruch] {self.abbruch_grund}")
             return False
         
         # wenn max iterationen erreich sind
         if self.aktuelle_iteration >= self.max_iterationen:
             self.optimierung_beendet = True
             self.abbruch_grund = "Max Iterationszahl erreicht"
+            self._protokollieren(f"[Abbruch] {self.abbruch_grund}")
             return False
         
         # Zielmaterial nun auf Anzahl der Knoten übertragen, das wir bei erreichter Anzahl an Knoten abbrechen
@@ -308,6 +332,7 @@ class TopologieOptimierer:
         if out[0] is None:
             self.optimierung_beendet = True
             self.abbruch_grund = "Struktur nicht lösbar (vor Schritt)"
+            self._protokollieren(f"[Abbruch] {self.abbruch_grund}")
             return False
 
        # _, u_now, _, _ = out
@@ -351,6 +376,7 @@ class TopologieOptimierer:
         if not ok or entfernt_n == 0:
             self.optimierung_beendet = True
             self.abbruch_grund = "Kein weiterer Fortschritt mehr möglich"
+            self._protokollieren(f"[Abbruch] {self.abbruch_grund}")
             return False
         
         return True
