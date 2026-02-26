@@ -170,6 +170,13 @@ with tab_ansicht:
 
         if loeschen_kraft: 
             st.session_state.entwurf_kraefte.pop(kraft_knoten, None)
+            #wird nun richtig aus Strukur gelöscht sonst bleibts im plot 
+            struktur.kraft_loeschen(kraft_knoten)
+
+            #veraltetets ergebnis (falls solve gedrückt war) zurücksetzen 
+            st.session_state.u = None 
+            st.session_state.mapping = None 
+
             st.session_state.kraft_knoten_id = kraft_knoten
             flash("success", f"Kraft Entwurf für Knoten {kraft_knoten} entfernt !!")
             #st.success(f"Kraft Entwurf für Knoten {kraft_knoten} entfernt !!")
@@ -191,8 +198,23 @@ with tab_ansicht:
              })
             st.dataframe(daten, width="stretch", hide_index=True)
         else:
-            st.info("Keine Kraft-Entwürfe vorhanden. Default Werte eingestellt !!")
+            if struktur.last_knoten_id():
+                st.info("Keine Kraft-Entwürfe vorhanden. Default Werte eingestellt !!")
+            else: 
+                 st.info("Keine Kraft-Entwürfe vorhanden. Keine Default Werte eingestellt !!")
 
+        #Alle Kräfte entfernen button wird nur bei vorhandenen Kräften angezeigt 
+        if struktur.last_knoten_id():
+            if st.button("Alle Kräfte entfernen"):
+                for k_id in struktur.last_knoten_id():
+                    struktur.kraft_setzen(k_id, fx=0.0, fz=0.0)
+
+                st.session_state.entwurf_kraefte = {} #entwurftabelle auch löschen
+                st.session_state.u = None 
+                st.session_state.mapping = None 
+
+                flash("success", "Alle Kräfte entfernt")
+                st.rerun()
 
 #Rechte Spalte Lager Editor 
     with col_rechts:
@@ -200,6 +222,9 @@ with tab_ansicht:
 
         with st.form("lager_editor"):
             lager_knoten = st.selectbox("Knoten für Lager", options=aktive_ids, index=aktive_ids.index(st.session_state.lager_knoten_id) if st.session_state.lager_knoten_id in aktive_ids else 0)
+
+            #komplette spalte als lager setzen oder nur einzelne knoten
+            lager_setz_modus = st.selectbox("Setzmodus", ["Knoten einzeln", "Knotenspalte"], key="lager_setz_modus")
 
             lager_typ_default = st.session_state.entwurf_lager.get(lager_knoten, "Kein Lager")
         
@@ -210,15 +235,37 @@ with tab_ansicht:
             loeschen_lager = c2.form_submit_button("Aus Entwurf löschen")
 
         if speichern_lager: 
-            st.session_state.entwurf_lager[lager_knoten] = lager_typ
+            if st.session_state.lager_setz_modus == "Knotenspalte":
+                i = lager_knoten % struktur.anzahl_x
+                for j in range(struktur.anzahl_z):
+                    k_id = struktur.knoten_id(i, j)
+                    if struktur.knoten[k_id].knoten_aktiv:
+                        st.session_state.entwurf_lager[k_id] = lager_typ
+                flash("success", f"Lager Entwurf für Spalte i={i} gespeichert!!")
+            else:
+                st.session_state.entwurf_lager[lager_knoten] = lager_typ
+                flash("success", f"Lager Entwurf für Knoten {lager_knoten} gespeichert !!")
             st.session_state.lager_knoten_id = lager_knoten
-            flash("success", f"Lager Entwurf für Knoten {lager_knoten} gespeichert !!")
             #st.success(f"Lager Entwurf für Knoten {lager_knoten} gespeichert !!")            
             st.rerun()
+
         if loeschen_lager: 
-            st.session_state.entwurf_lager.pop(lager_knoten, None)
+            if st.session_state.lager_setz_modus == "Knotenspalte":
+                i = lager_knoten % struktur.anzahl_x
+                for j in range(struktur.anzahl_z):
+                    k_id = struktur.knoten_id(i, j)
+                    st.session_state.entwurf_lager.pop(k_id, None)
+                    struktur.lager_loeschen(k_id)
+                flash("success", f"Lager Entwurf für Spalte i={i} entfernt!!")
+
+            else: 
+                st.session_state.entwurf_lager.pop(lager_knoten, None)
+                struktur.lager_loeschen(lager_knoten)
+                flash("success", f"Lager Entwurf für Knoten {lager_knoten} entfernt !!")
+            
+            st.session_state.u = None 
+            st.session_state.mapping = None 
             st.session_state.lager_knoten_id = lager_knoten
-            flash("success", f"Lager Entwurf für Knoten {lager_knoten} entfernt !!")
             #st.success(f"Lager Entwurf für Knoten {lager_knoten} entfernt !!")        
             st.rerun()
 
@@ -235,7 +282,23 @@ with tab_ansicht:
                 })
             st.dataframe(daten, width="stretch", hide_index=True)
         else:
-            st.info("Keine Lager-Entwürfe vorhanden. Default Werte eingestellt !!")
+            if struktur.lager_knoten_id():
+                st.info("Keine Lager-Entwürfe vorhanden. Default Werte eingestellt !!")
+            else: 
+                st.info("Keine Lager-Entwürfe vorhanden. Keine Default Werte eingestellt !!")
+        
+        #Alle Lager entfernen Button wird nur bei vorhandenen lagern angezeigt 
+        if struktur.lager_knoten_id():
+            if st.button("Alle Lager entfernen"):
+                for k_id in struktur.lager_knoten_id():
+                    struktur.lager_setzen(k_id, False, False)
+
+                st.session_state.entwurf_lager = {}
+                st.session_state.u = None 
+                st.session_state.mapping = None 
+                
+                flash("success", "Alle Lager entfernt")
+                st.rerun()
 
     st.markdown("---")
 
@@ -244,20 +307,20 @@ with tab_ansicht:
     colA, colB = st.columns([1, 1])
 
     with colA: 
-        if st.button("Etwürfe auf Struktur anwenden"):
+        if st.button("Entwürfe auf Struktur anwenden"):
             entwurf_auf_struktur_anwenden(struktur)
             flash("success", "Entwürfe angewendet. Jetzt kann man Solve drücken")
             #st.success("Entwürfe angewendet. Jetzt kann man Solve drücken !!")
             st.rerun()
 
     with colB: 
-        if st.button("Entwürfe zurücksetzten"): 
+        if st.button("Auf Default zurücksetzen"): 
             st.session_state.struktur = struktur_bauen(int(nx), int(nz), float(dx), float(dz), lager_modus)
             st.session_state.entwurf_kraefte = {}
             st.session_state.entwurf_lager = {}
             st.session_state.u = None 
             st.session_state.mapping = None
-            flash("success", "Entwürfe gelöscht und Struktur aktualisiert")
+            flash("success", "Entwürfe gelöscht, Default Werte eingestellt")
             #st.success("Entwürfe gelöscht!!!")
             st.rerun()
 

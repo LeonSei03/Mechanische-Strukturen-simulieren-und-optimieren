@@ -20,7 +20,11 @@ def struktur_bauen(nx, nz, dx, dz, lager_modus):
     s.gitter_erzeugen_knoten(nx, nz, dx, dz)
     
     #dx/dz als Federsteifigkeiten, später evtl getrennt in der Sidebar anwenden? k_h, k_v; k_d ?
-    s.gitter_erzeugen_federn(dx, dz, 1.0 / np.sqrt(2))
+    # wir verwenden dx und dz auch als abstand, dass ist verwirrend hab hier federsteifigkeit konkret übergeben
+    k_h = 1.0 #horizontal
+    k_v = 1.0 #vertikal
+    k_d = 1.0 / np.sqrt(2) #diagonal 
+    s.gitter_erzeugen_federn(k_h, k_v, k_d)
 
     # entweder wir spannen ganze spalte ein oder nur direkt der Knoten am Lager
     if lager_modus == "Knotenspalte":
@@ -29,9 +33,9 @@ def struktur_bauen(nx, nz, dx, dz, lager_modus):
             k_id = s.knoten_id(0, j)
             s.lager_setzen(k_id, True, True)
         # ganze rechte Spalte ein Loslager
-        for j in range(nz):
-            k_id = s.knoten_id(nx-1, j)
-            s.lager_setzen(k_id, False, True)
+        #for j in range(nz):
+            #k_id = s.knoten_id(nx-1, j)
+            #s.lager_setzen(k_id, False, True)
 
     # ansonsten einfach nur Knoten fest genau am Lager
     else:
@@ -40,6 +44,27 @@ def struktur_bauen(nx, nz, dx, dz, lager_modus):
 
         s.lager_setzen(k_id_lager1, True, True)
         s.lager_setzen(k_id_lager2, False, True)
+
+
+    #Default Kraft mittig oben setzten 
+    f_default = -1.0 #nach unten gerichtete Kraft 
+
+    #oberste reihe 
+    top_j = nz - 1 
+
+    #je nachdem ob knoten anzahl nx gerade oder ungerade ist eine oder zwei kräft
+    if nx % 2 == 1: 
+        mid_i = nx // 2 
+        k_last = s.knoten_id(mid_i, top_j)
+        s.kraft_setzen(k_last, fx = 0.0, fz=f_default)
+    
+    else: 
+        mid_i_l = nx // 2 - 1
+        mid_i_r = nx // 2 
+        k_l = s.knoten_id(mid_i_l, top_j)
+        k_r = s.knoten_id(mid_i_r, top_j)
+        s.kraft_setzen(k_l, fx = 0.0, fz=0.5 * f_default)
+        s.kraft_setzen(k_r, fx=0.0, fz=0.5 * f_default)
 
     return s
 
