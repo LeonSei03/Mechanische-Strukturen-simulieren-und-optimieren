@@ -448,46 +448,42 @@ class Struktur:
     
     # Funktion welche uns sagt ob mindestens ein aktiver Lastknoten über aktive Federn mit mindestens einem aktiven Lagerknotne verbunden ist
     def ist_verbunden_last_zu_lager(self):
-        # aktuelle Last und lagerknoten bestimmen
-        last_ids = self.last_knoten_id()
-        lager_ids = set(self.lager_knoten_id())
 
-        # falls keine Last definiert ist
-        if not last_ids:
-            return True
-        
-        # falls keine Lager definiert sind
-        if not lager_ids:
+        # aktuelle Last und lagerknoten bestimmen
+        last_ids = self.last_knoten_id() or []
+        lager_ids = self.lager_knoten_id() or []
+
+        # falls keine Last oder Lager definiert sind
+        if not last_ids or not lager_ids:
             return False
         
         adj = self.nachbarschaft()
 
+        # Breitensuche von allen Lagerknoten
+        visited = set(lager_ids)
+        queue = list(lager_ids)
+
+        while queue:
+            # nächsten Knoten aus queue nehmen
+            v = queue.pop(0)
+            # alle direkten Nachbarn untersuchen
+            for nb in adj.get(v, []):
+                # nur weiter wenn dieser knoten noch nicht besucht wurde
+                if nb not in visited:
+                    visited.add(nb)
+                    queue.append(nb)
+
         # Breitensuche für jeden Lastknoten machen
         for start_id in last_ids:
-            # falls Lastknoten nicht mehr aktiv oder keine Nachbarn hat
-            if start_id not in adj:
-                continue
-
-            visited = {start_id}
-            queue = [start_id]
-
-            while queue:
-                # nächsten Knoten aus queue nehmen
-                v = queue.pop(0)
-
-                # gucken ob Lager erreicht wird
-                if v in lager_ids:
-                    return True
-                
-                # alle direkten Nachbarn untersuchen
-                for nb in adj.get(v, []):
-
-                    # nur weiter wenn dieser knoten noch nicht besucht wurde
-                    if nb not in visited:
-                        visited.add(nb)
-                        queue.append(nb)
+            if start_id not in visited:
+                return False
             
-        return False
+        # gucken ob alle Lager untereinander verbunden sind
+        for lag in lager_ids:
+            if lag not in visited:
+                return False
+            
+        return True
     
     # gibt eine Liste an Knoten ids zurück, welche auf dem Lastpfad zwischen Lastknoten und Lagerknoten liegen
     def finde_lastpfad_knoten(self):
@@ -562,3 +558,20 @@ class Struktur:
             zs.append(z_neu)
 
         return xs, zs
+    
+    def knoten_ohne_federn_entfernen(self):
+        """Entfernt aktive Knoten, welche keine aktiven Federn mehr dran hängen haben, um zu verhindern, dass random Knoten stehen bleiben"""
+
+        # Grad zählen
+        grad = {k_id: 0 for k_id in self.aktive_knoten_ids()}
+        for f_id in self.aktive_federn_ids():
+            f = self.federn[f_id]
+            if f.knoten_i in grad: grad[f.knoten_i] += 1
+            if f.knoten_j in grad: grad[f.knoten_j] += 1
+
+        entfernt = 0
+        for k_id, g in grad.items():
+            if g == 0 and not self.knoten_geschuetzt(k_id):
+                self.knoten_entfernen(k_id)
+                entfernt += 1
+        return entfernt
