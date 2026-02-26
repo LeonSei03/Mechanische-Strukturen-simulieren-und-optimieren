@@ -3,6 +3,7 @@ import numpy as np
 from optimierung import TopologieOptimierer
 import matplotlib.pyplot as plt
 import io
+import copy
 from checkpoint_database import (
     checkpoint_eintrag_anlegen,
     checkpoints_auflisten,
@@ -87,7 +88,7 @@ if struktur is None:
     st.stop()
 
 #Hauptlayout für Tabs bzw. Überischt 
-tab_ansicht, tab_optimierung, tab_plots = st.tabs(["Ansicht", "Optimierung", "Verlaufplots"])
+tab_ansicht, tab_optimierung, tab_plots, tab_vergleich = st.tabs(["Ansicht", "Optimierung", "Verlaufplots", "Vergleich"])
 
 #Tab 1 Ansicht (Preview immer sichtbar)
 with tab_ansicht:
@@ -780,61 +781,116 @@ with tab_plots:
 
     if not historie:
         st.info("Noch keine Optimierungshistorie verhanden, erst eine Struktur optimieren!!")
-        st.stop()
 
-    iterationen = [h.get("iteration", i) for i, h in enumerate(historie)]
-    energien = [h.get("gesamtenergie") for h in historie]
-    material = [h.get("material_anteil") for h in historie]
-    aktive_knoten = [h.get("aktive_knoten") for h in historie]
-    max_u = [h.get("max_u") for h in historie]
-    u_grenze = [h.get("u_max_grenze") for h in historie]
+    else:
+        iterationen = [h.get("iteration", i) for i, h in enumerate(historie)]
+        energien = [h.get("gesamtenergie") for h in historie]
+        material = [h.get("material_anteil") for h in historie]
+        aktive_knoten = [h.get("aktive_knoten") for h in historie]
+        max_u = [h.get("max_u") for h in historie]
+        u_grenze = [h.get("u_max_grenze") for h in historie]
 
-    
-    col1, col2, col3 = st.columns(3)
+        
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            # Plot der Gesamtenergie
+            fig1 = plt.figure()
+            plt.plot(iterationen, energien)
+            plt.xlabel("Iteration")
+            plt.ylabel("Gesamtenergie")
+            plt.title("Gesamtenergie über Iterationen")
+            plt.grid(True)
+            st.pyplot(fig1, width="stretch")
+            plt.close(fig1)
+
+        with col2:
+            # Plot vom Materialanteil
+            fig2 = plt.figure()
+            plt.plot(iterationen, material)
+            plt.xlabel("Iteration")
+            plt.ylabel("Materialanteil")
+            plt.title("Materialanteil über Iterationen")
+            plt.grid(True)
+            st.pyplot(fig2, width="stretch")
+            plt.close(fig2)
+
+        with col3:
+            # Plot der aktiven Knoten
+            fig3 = plt.figure()
+            plt.plot(iterationen, aktive_knoten)
+            plt.xlabel("Iteration")
+            plt.ylabel("Aktive Knoten")
+            plt.title("Aktive Knoten über Iterationen")
+            plt.grid(True)
+            st.pyplot(fig3, width="stretch")
+            plt.close(fig3)
+
+            if any(v is not None for v in max_u):
+                fig4 = plt.figure()
+                plt.plot(iterationen, max_u, label="max_u")
+                plt.plot(iterationen, u_grenze, label="u_max_grenze")
+                plt.xlabel("Iteration")
+                plt.ylabel("Verschiebung")
+                plt.title("Maximale Verschiebung vs. Grenze")
+                plt.grid(True)
+                plt.legend()
+                st.pyplot(fig4, width="stretch")
+                plt.close(fig4)
+
+    #plt.close("all")
+
+with tab_vergleich:
+    st.subheader("Vergleichen zweier Plots, wählen Sie den aktuellen Plot als Referenz")
+
+    #Referenzen speichern 
+    if st.button("Aktuelle Struktur als Referenz speichern"):
+        st.session_state.struktur_ref = copy.deepcopy(st.session_state.struktur)
+        st.session_state.u_ref = None if st.session_state.u is None else st.session_state.u.copy()
+        st.session_state.mapping_ref = None if st.session_state.mapping is None else dict(st.session_state.mapping)
+        flash("success", "Referenz gespeichert!!")
+        st.rerun()
+
+    #checkbox für deformiert undeformiert anzeigen 
+    show_deformed = st.checkbox("Deformierte Struktur anzeigen (wenn Solve vorhanden)", value=True)
+
+    col1, col2 = st.columns(2)
 
     with col1:
-        # Plot der Gesamtenergie
-        fig1 = plt.figure()
-        plt.plot(iterationen, energien)
-        plt.xlabel("Iteration")
-        plt.ylabel("Gesamtenergie")
-        plt.title("Gesamtenergie über Iterationen")
-        plt.grid(True)
-        st.pyplot(fig1, width="stretch")
-        plt.close(fig1)
+        st.markdown("### Referenz")
+        if st.session_state.struktur_ref is None:
+            st.info("Noch keine Referenz gespeichert!!")
+        else:
+            fig_ref = plotter.plot_struktur(
+                struktur=st.session_state.struktur_ref,
+                u=st.session_state.u_ref if show_deformed else None,
+                mapping=st.session_state.mapping_ref if show_deformed else None,
+                skalierung=float(skalierung),
+                titel="Referenz",
+                federn_anzeigen=federn_anzeigen,
+                knoten_ids_anzeigen=knoten_ids_anzeigen,
+                lastpfad_knoten=st.session_state.struktur_ref.finde_lastpfad_knoten(),
+                heatmap_modus=heatmap_modus if show_deformed else "Keine",
+                colorbar_anzeigen=False,      #kann man noch ändern, aber stört mich im vergleich 
+                legende_anzeigen=False       #brauchen wir beim vergleich auch nicht 
+            )
+            st.pyplot(fig_ref, width="stretch")
+            plt.close(fig_ref)
 
     with col2:
-        # Plot vom Materialanteil
-        fig2 = plt.figure()
-        plt.plot(iterationen, material)
-        plt.xlabel("Iteration")
-        plt.ylabel("Materialanteil")
-        plt.title("Materialanteil über Iterationen")
-        plt.grid(True)
-        st.pyplot(fig2, width="stretch")
-        plt.close(fig2)
-
-    with col3:
-        # Plot der aktiven Knoten
-        fig3 = plt.figure()
-        plt.plot(iterationen, aktive_knoten)
-        plt.xlabel("Iteration")
-        plt.ylabel("Aktive Knoten")
-        plt.title("Aktive Knoten über Iterationen")
-        plt.grid(True)
-        st.pyplot(fig3, width="stretch")
-        plt.close(fig3)
-
-        if any(v is not None for v in max_u):
-            fig4 = plt.figure()
-            plt.plot(iterationen, max_u, label="max_u")
-            plt.plot(iterationen, u_grenze, label="u_max_grenze")
-            plt.xlabel("Iteration")
-            plt.ylabel("Verschiebung")
-            plt.title("Maximale Verschiebung vs. Grenze")
-            plt.grid(True)
-            plt.legend()
-            st.pyplot(fig4, width="stretch")
-            plt.close(fig4)
-
-    plt.close("all")
+        st.markdown("### Aktuell")
+        fig_cur = plotter.plot_struktur(
+            struktur=st.session_state.struktur,
+            u=st.session_state.u if show_deformed else None,
+            mapping=st.session_state.mapping if show_deformed else None,
+            skalierung=float(skalierung),
+            titel="Aktuell",
+            federn_anzeigen=federn_anzeigen,
+            knoten_ids_anzeigen=knoten_ids_anzeigen,
+            lastpfad_knoten=st.session_state.struktur.finde_lastpfad_knoten(),
+            heatmap_modus=heatmap_modus if show_deformed else "Keine",
+            colorbar_anzeigen=False,
+            legende_anzeigen=False
+        )
+        st.pyplot(fig_cur, width="stretch")
+        plt.close(fig_cur)
