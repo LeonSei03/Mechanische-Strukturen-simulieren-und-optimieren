@@ -38,6 +38,16 @@ def init_session_state():
     if "start_masse" not in st.session_state: 
         st.session_state.start_masse = None 
 
+    #states für neuen tab 
+    if "struktur_ref" not in st.session_state:
+        st.session_state.struktur_ref = None
+
+    if "u_ref" not in st.session_state:
+        st.session_state.u_ref = None
+
+    if "mapping_ref" not in st.session_state:
+        st.session_state.mapping_ref = None
+
     # sessionstates für optimierung
     if "optimierer" not in st.session_state:
         st.session_state.optimierer = None
