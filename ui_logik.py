@@ -7,6 +7,30 @@ import os
 import pickle
 from datetime import datetime
 
+# Klasse um debug und statusmeldungen zu speichern während der optimierung
+class OptimierungsLogger:
+    def __init__(self, max_zeilen: int = 4000):
+        # liste aller Protokollzeilen
+        self.zeilen = []
+
+        # max gepsiecherter Zeilen
+        self.max_zeilen = max_zeilen
+
+    def protokollieren(self, nachricht: str):
+        """Fügt eine Meldung zum Protokoll hinzu und entfernt die ältesten Zeilen wenn max_zeilen überschritten wird."""
+        self.zeilen.append(str(nachricht))
+
+        # Speicherbegrenzung
+        if len(self.zeilen) > self.max_zeilen:
+            self.zeilen = self.zeilen[-self.max_zeilen]
+    
+    def leeren(self):
+        self.zeilen.clear()
+
+    def letzte_zeilen(self, anzahl: int = 200):
+        return "\n".join(self.zeilen[-anzahl:])
+
+
 # Funktion um aktuelles System zu lösen
 def loese_aktuelle_struktur(struktur:Struktur):
     K, F, fixiert, mapping = struktur.system_aufbauen()
