@@ -114,6 +114,7 @@ with tab_ansicht:
     # Figure in den Buffer schreiben
     fig.savefig(puffer, format="png", bbox_inches="tight", dpi=200)
     puffer.seek(0)
+    plt.close(fig)
 
     st.download_button(
     label="Optimierte Struktur als PNG herunterladen",
@@ -517,6 +518,7 @@ with tab_optimierung:
 
                         img = fig_zu_pil(fig_frame, dpi=120)
                         st.session_state.gif_frames.append(img)
+                        plt.close(fig_frame)
                 
                 if ok is False:
                     break
@@ -580,7 +582,8 @@ with tab_optimierung:
                 if st.session_state.gif_recording:
                     img = fig_zu_pil(fig, dpi=120)
                     st.session_state.gif_frames.append(img)
-
+                
+                plt.close(fig)
                 st.rerun() 
 
     if auto_weiter:
@@ -626,6 +629,7 @@ with tab_optimierung:
                 # fig -> PIL image und speichern
                 img = fig_zu_pil(fig_frame, dpi=120)   # dein helper (oder fig_zu_pil)
                 st.session_state.gif_frames.append(img)
+                plt.close(fig_frame)
 
             # Fertig?
             if st.session_state.optimierer.optimierung_beendet:
@@ -655,13 +659,14 @@ with tab_optimierung:
             legende_anzeigen=legende_anzeigen,
         )
         st.pyplot(fig_opt, width="stretch")
-        
+
         # Plot als PNG herunterladen
         puffer = io.BytesIO()
 
         # Figure in den Buffer schreiben
         fig_opt.savefig(puffer, format="png", bbox_inches="tight", dpi=200)
         puffer.seek(0)
+        plt.close(fig_opt)
 
         st.download_button(
         label="Optimierte Struktur als PNG herunterladen",
@@ -733,6 +738,7 @@ with tab_plots:
         plt.title("Gesamtenergie über Iterationen")
         plt.grid(True)
         st.pyplot(fig1, width="stretch")
+        plt.close(fig1)
 
     with col2:
         # Plot vom Materialanteil
@@ -743,6 +749,7 @@ with tab_plots:
         plt.title("Materialanteil über Iterationen")
         plt.grid(True)
         st.pyplot(fig2, width="stretch")
+        plt.close(fig2)
 
     with col3:
         # Plot der aktiven Knoten
@@ -753,6 +760,7 @@ with tab_plots:
         plt.title("Aktive Knoten über Iterationen")
         plt.grid(True)
         st.pyplot(fig3, width="stretch")
+        plt.close(fig3)
 
         if any(v is not None for v in max_u):
             fig4 = plt.figure()
@@ -764,5 +772,6 @@ with tab_plots:
             plt.grid(True)
             plt.legend()
             st.pyplot(fig4, width="stretch")
+            plt.close(fig4)
 
     plt.close("all")

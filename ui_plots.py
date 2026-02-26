@@ -256,11 +256,11 @@ class UIPlots:
             #deformierte Knoten und Federn 
             xs_d, zs_d, cols_d = [], [], []
 
-            for k_id in struktur.aktive_knoten_ids():
-                x, z = self._knoten_pos(struktur, k_id, u, mapping, skalierung)
+            deform_knoten_ids = list(mapping.keys())
 
-                xs_d.append(x)
-                zs_d.append(z)
+            for k_id in deform_knoten_ids:
+                x, z = self._knoten_pos(struktur, k_id, u, mapping, skalierung)
+                xs_d.append(x); zs_d.append(z)
 
                 #Standardfarbe 
                 col = self.farbe_knoten_deformiert
@@ -279,6 +279,9 @@ class UIPlots:
                 for f_id in struktur.aktive_federn_ids():
                     feder = struktur.federn[f_id]
 
+                    if feder.knoten_i not in mapping or feder.knoten_j not in mapping:
+                        continue
+
                     xi, zi = self._knoten_pos(struktur, feder.knoten_i, u, mapping, skalierung)
                     xj, zj = self._knoten_pos(struktur, feder.knoten_j, u, mapping, skalierung)
                     
@@ -293,34 +296,54 @@ class UIPlots:
 
                     ax.plot([xi, xj], [zi, zj], linewidth = 0.8, color=col, zorder = 1)
 
-            # Lastpfade anzeigen lassen
-            if lastpfad_knoten is not None:
+        # Lastpfade anzeigen lassen
+        if lastpfad_knoten is not None:
+            # pfade kann entweder [pfad] oder [pfad1, pfad2, ...] sein
+            pfade = lastpfad_knoten
+            if pfade and isinstance(pfade[0], int):
+                pfade = [pfade]
 
-                # Falls mehrere Pfade -> direkt so verwenden
-                pfade = lastpfad_knoten
+            adj = struktur.nachbarschaft()  # sollte nur aktive Federn/Knoten berücksichtigen
 
-                for pfad in pfade:
+            def pos(k_id):
+                # entweder komplett deformiert oder komplett undeformiert (kein Mischmodus)
+                if (u is not None) and (mapping is not None) and (k_id in mapping):
+                    ix, iz = mapping[k_id]
+                    k = struktur.knoten[k_id]
+                    return (k.x + skalierung * float(u[ix]), k.z + skalierung * float(u[iz]))
+                else:
+                    k = struktur.knoten[k_id]
+                    return (k.x, k.z)
 
-                    if len(pfad) < 2:
-                        continue
+            for pfad in pfade:
+                if not pfad or len(pfad) < 2:
+                    continue
 
-                    xs = []
-                    zs = []
+                # nur Segmente zeichnen, wenn k_i und k_{i+1} wirklich Nachbarn sind
+                seg_x = []
+                seg_z = []
 
-                    for k_id in pfad:
-                        k = struktur.knoten[k_id]
+                for a, b in zip(pfad[:-1], pfad[1:]):
+                    if b in adj.get(a, []):
+                        xa, za = pos(a)
+                        xb, zb = pos(b)
 
-                        # deformiert
-                        if u is not None and mapping is not None and k_id in mapping:
-                            ix, iz = mapping[k_id]
-                            xs.append(k.x + skalierung * u[ix])
-                            zs.append(k.z + skalierung * u[iz])
+                        # neuen Segment-Start?
+                        if not seg_x:
+                            seg_x = [xa, xb]
+                            seg_z = [za, zb]
                         else:
-                            # undeformiert
-                            xs.append(k.x)
-                            zs.append(k.z)
+                            seg_x.append(xb)
+                            seg_z.append(zb)
+                    else:
+                        # Segment abschließen, Sprung wird nicht gezeichnet
+                        if len(seg_x) >= 2:
+                            ax.plot(seg_x, seg_z, linewidth=2, color="red", zorder=10)
+                        seg_x, seg_z = [], []
 
-                    ax.plot(xs, zs, linewidth=2, color="red")
+                # letztes Segment zeichnen
+                if len(seg_x) >= 2:
+                    ax.plot(seg_x, seg_z, linewidth=2, color="red", zorder=10)
 
         # Colorbar also die Farblegende
         if colorbar_anzeigen and heatmap_aktiv and norm is not None:
