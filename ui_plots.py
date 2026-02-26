@@ -32,13 +32,19 @@ class UIPlots:
         k = struktur.knoten[knoten_id]
         x, z = k.x, k.z
 
-        #Wenn eine Lösung mit u vorhanden ist und der Knoten im mapping ist dann deformierte Position verwenden 
-        if u is not None and mapping is not None and knoten_id in mapping:
-            ix, iz = mapping[knoten_id]
-            x += float(skalierung) * float(u[ix])
-            z += float(skalierung) * float(u[iz])
+        if u is None or mapping is None:
+            return x, z
 
+        idx = mapping.get(knoten_id, None)
+
+        if idx is None:
+            return x, z
+        
+        ix, iz = idx
+        x += float(skalierung) * float(u[ix])
+        z += float(skalierung) * float(u[iz])
         return x, z 
+
     
     def _sammle_plot_marker(self, struktur:Struktur): 
         '''
@@ -256,7 +262,9 @@ class UIPlots:
             #deformierte Knoten und Federn 
             xs_d, zs_d, cols_d = [], [], []
 
-            deform_knoten_ids = list(mapping.keys())
+            #deform_knoten_ids = list(mapping.keys())
+
+            deform_knoten_ids = list(struktur.aktive_knoten_ids())
 
             for k_id in deform_knoten_ids:
                 x, z = self._knoten_pos(struktur, k_id, u, mapping, skalierung)
