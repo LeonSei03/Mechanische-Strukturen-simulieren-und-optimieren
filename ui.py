@@ -55,7 +55,7 @@ with st.sidebar.form("parameter_form"):
 #aus dem Form herausgezogen für dynamische Darstellung druch automatischen rerun für Federn und Knoten ID
 st.sidebar.markdown("---")
 st.sidebar.subheader("Darstellung")
-skalierung = st.sidebar.slider("Skalierung Deformation", 0.1, 5.0, 1.0, 0.1, key="skalierung")
+skalierung = st.sidebar.slider("Skalierung Deformation", 0.1, 3.0, 1.0, 0.1, key="skalierung")
 federn_anzeigen = st.sidebar.checkbox("Federn anzeigen", value=False, key="federn_anzeigen")
 knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-IDs anzeigen", value=False, key="knoten_ids_anzeigen")
 legende_anzeigen = st.sidebar.checkbox("Legende anzeigen", value=True, key="legende_anzeigen")
@@ -363,19 +363,19 @@ elif navigation == "Optimierung":
             format_func=lambda s: "Energiebasiert (lokal)" if s == "energie" else "Dijkstra-Lastpfad (global geschützt)"
         )
 
-        dijkstra_ring_opt = st.slider("Dijkstra: Pfad-Schutz (Nachbarschaft)", 0, 2, 0)
+        dijkstra_ring_opt = st.slider("Dijkstra: Pfad-Schutz (Nachbarschaft, nur bei Dijkstra-Lastpfad-Modus)", 0, 2, 0)
 
         ziel_anteil_opt = st.slider(
             "Ziel-Massenanteil (z.B 0,5 ist die Hälfte der Masse behalten)",
             0.05, 0.95, 0.50, 0.01
         )
-        max_iter_opt = st.number_input("Max. Iterationen", 1, 200, 5)
+        max_iter_opt = st.number_input("Max. Iterationen", 1, 200, 20)
         max_entfernen_pro_iter_opt = st.number_input(
-            "max_entfernen_pro_iter (max Anzahl an Knoten welche pro iter versucht wird wegzumachen)",
-            1, 200, 3
+            "Anzahl der Knoten welche pro Iteration versucht wird zu entfernen",
+            1, 300, 50
         )
         u_faktor_opt = st.number_input(
-            "u_faktor (zugelassene Dehnung vor Rollback)",
+            "Zugelassene Dehnung vor Rollback (u_faktor)",
             0.1, 200.0, 3.0, 0.1
         )
 
@@ -601,7 +601,7 @@ elif navigation == "Optimierung":
                             u=None,
                             mapping=None,
                             skalierung=1.0,
-                            titel="Optimierte Struktur (undeformiert)",
+                            titel="Optimierte bzw. zu optimierende Struktur (undeformiert)",
                             federn_anzeigen=federn_anzeigen,
                             knoten_ids_anzeigen=knoten_ids_anzeigen,
                             lastpfad_knoten=lastpfad,
@@ -623,7 +623,7 @@ elif navigation == "Optimierung":
             st.session_state.u = None
             st.session_state.mapping = None
 
-            flash("success", f"Optimirter Schnellmodus beendet: {st.session_state.optimierer.abbruch_grund}")
+            flash("success", f"Optimierter Schnellmodus beendet: {st.session_state.optimierer.abbruch_grund}")
             #st.success(
             #    f"Optimierung (Schnellmodus) beendet: "
             #    f"{st.session_state.optimierer.abbruch_grund}"
@@ -635,7 +635,7 @@ elif navigation == "Optimierung":
     # einzelnen Optimierungsschritt durchführen
     if weiter:
         if st.session_state.optimierer is None:
-            st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'!!")
+            st.warning("Bitte zuerst 'Optimierung initialisieren (neu)' oder 'Laden / Fortsetzen'!!")
         else:
 
             opt = st.session_state.optimierer
@@ -682,7 +682,7 @@ elif navigation == "Optimierung":
 
     if auto_weiter:
         if st.session_state.optimierer is None:
-            st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'!!")
+            st.warning("Bitte zuerst 'Optimierung initialisieren (neu)' oder 'Laden / Fortsetzen'!!")
         else:
             st.session_state.optimierung_laeuft = True
             st.session_state.stop_angefordert = False
