@@ -31,8 +31,8 @@ Um mit dem Anwenung arbeiten zu können gibt es zwei verschiedene möglichkeiten
 
 Die erste Möglichkeit ist hierbei das ganze Repo zu Klonen, man kann selbst am Code weiter arbeiten und weiter optimieren. Dies Funktioniert so:
 - Repository Klonen: 
-    - git clone <REPO-URL>
-    - cd <REPO-ORDNER>
+    - git clone https://github.com/LeonSei03/Mechanische-Strukturen-simulieren-und-optimieren.git
+    - cd Mechanische-Strukturen-simulieren-und-optimieren
 - Virtuelle Umgebung erstellen:
     - python -m venv .venv 
     - .venv/Scripts/activate (Windows)
