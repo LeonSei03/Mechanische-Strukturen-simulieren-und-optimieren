@@ -59,6 +59,7 @@ skalierung = st.sidebar.slider("Skalierung Deformation", 0.1, 5.0, 1.0, 0.1, key
 federn_anzeigen = st.sidebar.checkbox("Federn anzeigen", value=False, key="federn_anzeigen")
 knoten_ids_anzeigen = st.sidebar.checkbox("Knoten-IDs anzeigen", value=False, key="knoten_ids_anzeigen")
 legende_anzeigen = st.sidebar.checkbox("Legende anzeigen", value=True, key="legende_anzeigen")
+lastpfad_anzeigen = st.sidebar.checkbox("Lastpfad anzeigen", value=True, key="lastpfad_anzeigen")
 
 #Heatmap Einstellungen in der Sidebar (wie Feder anzeigen IDs anzeigen)
 st.sidebar.markdown("---")
@@ -109,7 +110,7 @@ if navigation == "Ansicht":
     col_a.metric("Startmasse (kg)", start_masse)
     col_b.metric("Aktuelle Masse (kg)", aktuelle_masse)
 
-    lastpfad = st.session_state.struktur.finde_lastpfad_knoten()
+    lastpfad = struktur.finde_lastpfad_knoten() if lastpfad_anzeigen else None
 
     fig = plotter.plot_struktur(struktur=struktur, u=st.session_state.u, mapping=st.session_state.mapping, skalierung=float(skalierung), titel=("Struktur (undeformiert bzw. deformiert)"), federn_anzeigen=federn_anzeigen, knoten_ids_anzeigen=knoten_ids_anzeigen, lastpfad_knoten=lastpfad, heatmap_modus=heatmap_modus, colorbar_anzeigen=colorbar_anzeigen, legende_anzeigen=legende_anzeigen)
     
@@ -378,7 +379,7 @@ elif navigation == "Optimierung":
             0.1, 200.0, 3.0, 0.1
         )
 
-        start_neu = st.form_submit_button("Optimierung starten")
+        start_neu = st.form_submit_button("Optimierung initialisieren")
 
         st.session_state.gif_recording = st.checkbox("GIF Recording aktiv", value=st.session_state.gif_recording)
 
@@ -545,7 +546,7 @@ elif navigation == "Optimierung":
 
     if schnell_durchlaufen:
         if st.session_state.optimierer is None:
-            st.warning("Bitte zuerst 'Optimierung starten (neu)' oder 'Laden / Fortsetzen'.")
+            st.warning("Bitte zuerst 'Optimierung initialisieren (neu)' oder 'Laden / Fortsetzen'.")
         else:
             # Interaktiven Lauf deaktivieren
             st.session_state.optimierung_laeuft = False
@@ -572,7 +573,7 @@ elif navigation == "Optimierung":
                             and len(st.session_state.gif_frames) < max_frames):
 
                         struktur_plot = st.session_state.struktur
-                        lastpfad = struktur_plot.finde_lastpfad_knoten()
+                        lastpfad = struktur_plot.finde_lastpfad_knoten() if lastpfad_anzeigen else None
                         fig_frame = plotter.plot_struktur(
                             struktur=struktur_plot,
                             u=None,
@@ -633,7 +634,7 @@ elif navigation == "Optimierung":
 
                 # Plot aus dem aktualisierten Zustand erstellen
                 struktur_plot = st.session_state.struktur
-                lastpfad = struktur_plot.finde_lastpfad_knoten()
+                lastpfad = struktur_plot.finde_lastpfad_knoten() if lastpfad_anzeigen else None
                 fig = plotter.plot_struktur(
                     struktur=struktur_plot,
                     u=None,
@@ -682,7 +683,7 @@ elif navigation == "Optimierung":
             # gif frame aufnehmen für das video
             if st.session_state.get("gif_recording", False):
                 struktur_plot = st.session_state.struktur
-                lastpfad = struktur_plot.finde_lastpfad_knoten()
+                lastpfad = struktur_plot.finde_lastpfad_knoten() if lastpfad_anzeigen else None
                 fig_frame = plotter.plot_struktur(
                     struktur=struktur_plot,
                     u=None,
@@ -715,7 +716,7 @@ elif navigation == "Optimierung":
         st.markdown("### Optimierte Struktur (undeformiert)")
 
         struktur_plot = st.session_state.struktur
-        lastpfad = struktur_plot.finde_lastpfad_knoten()
+        lastpfad = struktur_plot.finde_lastpfad_knoten() if lastpfad_anzeigen else None
         fig_opt = plotter.plot_struktur(
             struktur=struktur_plot,
             u=None,
@@ -878,7 +879,7 @@ elif navigation == "Vergleich":
                 titel="Referenz",
                 federn_anzeigen=federn_anzeigen,
                 knoten_ids_anzeigen=knoten_ids_anzeigen,
-                lastpfad_knoten=st.session_state.struktur_ref.finde_lastpfad_knoten(),
+                lastpfad_knoten=st.session_state.struktur_ref.finde_lastpfad_knoten() if lastpfad_anzeigen else None,
                 heatmap_modus=heatmap_modus if show_deformed else "Keine",
                 colorbar_anzeigen=False,      #kann man noch ändern, aber stört mich im vergleich 
                 legende_anzeigen=False       #brauchen wir beim vergleich auch nicht 
@@ -896,7 +897,7 @@ elif navigation == "Vergleich":
             titel="Aktuell",
             federn_anzeigen=federn_anzeigen,
             knoten_ids_anzeigen=knoten_ids_anzeigen,
-            lastpfad_knoten=st.session_state.struktur.finde_lastpfad_knoten(),
+            lastpfad_knoten=st.session_state.struktur.finde_lastpfad_knoten() if lastpfad_anzeigen else None,
             heatmap_modus=heatmap_modus if show_deformed else "Keine",
             colorbar_anzeigen=False,
             legende_anzeigen=False
