@@ -296,3 +296,6 @@ Folgendes Aktivitätsdiagramm beschreibt die eigentliche Kernlogik der Optimieru
 
 # Verwendung von Dokumentationen und KI 
 Als Grundlage zum Programmieren dienten vor allem die LV-Unterlagen und Standarddokumentationen der verwendeten Tools und Bibliotheken. Ergänzend wurden KI-Werkzeuge nur vereinzelt und ausschließlich unterstützend genutzt, etwa bei Debugging oder zur allgemeinen Orientierung. Die Konzeption, Umsetzung und Programmierung des Projekts erfolgten dabei selbstständig.
+
+### Ersteller
+Dieses Projekt wurde im Rahmen des Abschlussprojekts der Lehrveranstaltung Softwaredesign von Simon Ulseß und Leon Seibert erstellt.
