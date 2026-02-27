@@ -88,7 +88,7 @@ Die erste Möglichkeit ist hierbei das ganze Repo zu Klonen, man kann selbst am 
 
 Für die zweite Möglichkeit um mit der Anwendung arbeiten zu können muss man lediglich diesem Link folgen: https://mechanische-strukturen-simulieren-und-optimieren.streamlit.app. Allerdings kann man hierbei keinen Code ändern/überarbeiten sondern nur mit dem bereits vorhandenem UI interagieren.  
 # Anleitung UI 
-### Sidebar
+## Sidebar
 Die Sidebar links enthält Einstellungen, welche tabübergreifend wirken. 
 #### Geometrie / Lager 
 - `nx` / `nz`: Anzahl der Knoten in x- und z-Richtung
@@ -111,7 +111,7 @@ Die Sidebar links enthält Einstellungen, welche tabübergreifend wirken.
 - `Federenergie` / `Federkraft`: färbt Federn/Knoten nach Energie bzw. Kraft (nur nach `Solve` sichtbar)
 - Hinweis: Bei `Federenergie` / `Federkraft` werden die Federn automatisch eingeblendet, auch wenn die Checkbox aus ist.
 
-### Tab Ansicht 
+## Tab Ansicht 
 Bei Start der Anwendung wird automatisch eine Default-Struktur erzeugt mit der man sofort arbeiten kann: 
 - Default-Kraft wirkt mittig oben nach unten (bei geradem nx auf zwei Knoten verteilt)
 - Default-Lager: je nach `Lager (Start)` in der Sidebar 
@@ -142,7 +142,7 @@ Bei Start der Anwendung wird automatisch eine Default-Struktur erzeugt mit der m
 
 Mit dem Button `Default ...` werden alle eingenen entwürfe gelöscht und die Default-Struktur wird wiederhergestellt. 
 
-### Tab Optimierung 
+## Tab Optimierung 
 Hier wird eine Topologieoptimierung durchgeführt, mit dem Ziel die aktive Masse (1 Knoten = 1 kg) zu reduzieren
 
 1. `Optimierung initialisieren` 
@@ -158,37 +158,60 @@ Hier wird eine Topologieoptimierung durchgeführt, mit dem Ziel die aktive Masse
 - `Auto-Weiter` / `Stop`: iteriert automatisch pro UI-Rerun, Stop hält nach dem aktuellen Schritt an 
 - `Optimierung komplett durchlafuen (schnell)`: läuft ohne Stop-Möglichkeiten bis zum Ende 
 
-#### Checkpoints (Speichern / Laden)
+### Checkpoints (Speichern / Laden)
 - `Speichern`: speichert den Optimierten-Zustand als Checkpoint inklusive Paramter/Info 
 - `Laden / Fortsetzen`: lädt einen ausgewählten Checkpoint und man kann die Optimierung fortsetzen 
 - `Checkpoint löschen`: löscht den ausgewählten Checkpoint 
-#### GIF Recording 
+### GIF Recording 
 - `GIF Recording aktiv`: zeichnet während der Optimierung Frames auf 
 - Danach: FPS wählen --> GIF erstellen --> Download 
 
-### Tab Varlaufplots 
+## Tab Varlaufplots 
 Zeift Verlauf über Iteration: 
 - Gesamtenergie
 - Materialanteil 
 - Aktive Knoten 
 - maximale Verschiebung vs. Grenze 
 
-### Tab Vergleich 
+## Tab Vergleich 
 Vergleich von Referenz-Struktur vs. Aktuell: 
 - Button `Aktuelle Struktur als Referenz speichern` speichert eine Kopie der aktuellen Struktur 
 - Checkbox `Deformierte Struktur anzeigen` blendet (falls Solve vorhanden) die deformierte Struktur ein
 
 # Implementierte Erweiterungen
-#### Heatmap-Visualisierung für Verschiebung, Federenergie und Federkraft 
+### Heatmap-Visualisierung für Verschiebung, Federenergie und Federkraft 
 
-#### Verschiedene Optimierungsstrategien (energie-basiert und lastpfad-gestützt)
+### Verschiedene Optimierungsstrategien (energie-basiert und lastpfad-gestützt)
 
-#### Anzeige von Lastpfad 
+### Anzeige von Lastpfad 
 
-#### Verlaufplots
+### Verlaufplots
 
-#### Strukturvergleich Nebeneineder 
+### Strukturvergleich Nebeneineder 
 
-#### GIF-Export der Optimierung  
+### GIF-Export der Optimierung  
 
-#### Checkpoint-System (TinyDB + Pickle)
+### Checkpoint-System (TinyDB + Pickle)
+
+# Achitektur und zentrale Abläufe 
+### Architekturübersicht / Mermaid 
+Das folgende Diagramm zeigt die wesentlichen Komponeten der Anwendung und ihre Beziehungen.
+
+![Mermaid Diagramm](Bilder/Mermaid_Diagramm.png)
+
+### Solve-Workflow 
+Das folgende Aktivitätsdiagramm zeigt den Ablauf beim Lösen einer Struktur durch den `Solve` Button in der Benutzeroberfläche. 
+
+![Solve Diagramm](Bilder/PlantUML_Solve_Logik.png)
+
+### Optimierungsschritt 
+Folgendes Aktivitätsdiagramm zeigt den Ablauf eines einzelnen Optimierungsschritts. Zunächst werden Abbruchbedingungen geprüft und anschließend wird ein adaptiver EIntfernungsschritt ausgeführt und das Ergebnis bewertet. 
+
+![Optimierungs Diagramm](Bilder/PlantUML_Optimierungsschritt.png)
+
+### Adaptiver Rollback-Schritt 
+Folgendes Aktivitätsdiagramm beschreibt die eigentliche Kernlogik der Optimierung. Knoten werden testweise entfernt, bei Instabilität oder zu großer Verschiebung wird der vorherige Zustand per Rollback wiederhergestellt. 
+
+![Optimierungs Diagramm](Bilder/PlantUML_Rollback.png)
+
+# Verwendung von Dokumentationen 
