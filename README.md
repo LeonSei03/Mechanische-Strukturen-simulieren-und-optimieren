@@ -39,8 +39,8 @@ Der erste MBB-Balken wird mit folgenden Optimierungsparametern erzeugt:
 - `Optimierungsstrategie` --> Energiebasiert (lokal)
 - `Ziel-Massenanteil` --> 0.50
 - `Max. Iterationen`--> 30
-- `max_entfernen_pro_iter`--> 60
-- `u_faktor`--> 2.0
+- `Anzahl der Knoten welche versucht wird zu entfernen`--> 60
+- `Zugelassene Dehnung vor Rollback`--> 2.0
 
 ![MBB Energiebasiert](Bilder/MBB_Energiebasiert.png)
 
@@ -51,8 +51,8 @@ Der zweite MBB-Balken wird mit folgenden Optimierungsparametern erzeugt:
 - `Pfad-Schutz (Nachbarschaft)` --> 0
 - `Ziel-Massenanteil` --> 0.50
 - `Max. Iterationen`--> 30
-- `max_entfernen_pro_iter`--> 60
-- `u_faktor`--> 2.0
+- `Anzahl der Knoten welche versucht wird zu entfernen`--> 60
+- `Zugelassene Dehnung vor Rollback`--> 2.0
 
 ![MBB Dijkstra Lastpfad](Bilder/MBB_Dijkstra_NULL.png)
 
@@ -63,8 +63,8 @@ Der dritte MBB-Balken wird mit folgenden Optimierungsparametern erzeugt:
 - `Pfad-Schutz (Nachbarschaft)` --> 2
 - `Ziel-Massenanteil` --> 0.50
 - `Max. Iterationen`--> 30
-- `max_entfernen_pro_iter`--> 60
-- `u_faktor`--> 2.0
+- `Anzahl der Knoten welche versucht wird zu entfernen`--> 60
+- `Zugelassene Dehnung vor Rollback`--> 2.0
 
 ![MBB Dijkstra Lastpfad zwei](Bilder/MBB_Dijkstra_ZWEI.png)
 
@@ -142,7 +142,7 @@ Bei Start der Anwendung wird automatisch eine Default-Struktur erzeugt mit der m
 - `Aus Entwurf löschen`: entfernt den Lager-Entwurf für Knoten/Knotenspalte je nachdem was ausgewählt ist
 - `Alle Lager entfernen`: entfernt alle vorhandenen Lager aus der Struktur 
 
-Mit dem Button `Default ...` werden alle eingenen entwürfe gelöscht und die Default-Struktur wird wiederhergestellt. 
+Mit dem Button `Auf Default zurücksetzen` werden alle eingenen entwürfe gelöscht und die Default-Struktur wird wiederhergestellt. 
 
 ## Tab Optimierung 
 Hier wird eine Topologieoptimierung durchgeführt, mit dem Ziel die aktive Masse (1 Knoten = 1 kg) zu reduzieren
@@ -152,7 +152,7 @@ Hier wird eine Topologieoptimierung durchgeführt, mit dem Ziel die aktive Masse
     - Energiebasiert (lokal) 
     - Dijkstra-Lastpfad (global geschützt), mit "Pfad-Schutz(Nachbarschaft)
 - Ziel-Massenanteil z.B 0,50 wählen -> Hälfte der Startmasse behalten 
-- Max. Iterationen, max_entfernen_pro_iter, u_faktor (Rollback/Limit-Parameter)
+- Max. Iterationen, Anzahl der Knoten welche versucht wird zu entfernen, Zugelassene Dehnung vor Rollback
 - Button `Optimierung initialisieren` übernimmt alle eingestellten Parameter 
 
 2. Optimierung laufen lassen 
@@ -262,7 +262,7 @@ Insbesondere die Entwicklung der maximalen Verschiebung liefert wichtige Hinweis
 sich die globale Steifigkeit mit zunehmender Materialreduktion verändert. 
 
 ### Strukturvergleich Nebeneinader 
-Der Strukturvergleich nebeneinander im Tab `Vergleich`dient dazu, um zwei Strukturen direkt nebeneinender betrachten und vergleichen zu können. Man kann jede beliebige Struktur als Referenzstruktur speichern und jeweils die später aktuelle Struktur daneben vergleichen, wodurch zum Beispiel unterschiedliche Belastungen, Lagerungen und Optimierungen direkt auffallen. 
+Der Strukturvergleich nebeneinander im Tab `Vergleich` dient dazu, um zwei Strukturen direkt nebeneinender betrachten und vergleichen zu können. Man kann jede beliebige Struktur als Referenzstruktur speichern und jeweils die später aktuelle Struktur daneben vergleichen, wodurch zum Beispiel unterschiedliche Belastungen, Lagerungen und Optimierungen direkt auffallen. 
 
 ### GIF-Export der Optimierung  
 Als zusätzliche Erweiterung wurde die Erstellung eines GIF-Videos implementiert, der den 
