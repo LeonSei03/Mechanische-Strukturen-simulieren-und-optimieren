@@ -82,9 +82,9 @@ class UIPlots:
 
         if not werte: 
             return None 
-        
-        vmin = float(min(werte))
-        vmax = float(max(werte))
+        #um ausreiser zu filtern dass nicht alles andere die gleiche farbe hat
+        vmin = float(np.percentile(werte, 5))
+        vmax = float(np.percentile(werte, 95))
 
         #Wenn alle Werte gleich sind die Skala minimal aufteilen damit Matplotlib nicht zickt (division durch 0)
         if np.isclose(vmin, vmax):
@@ -237,11 +237,13 @@ class UIPlots:
             ax.scatter(x, z, s=18, marker="s", color="black", label="Loslager", zorder = 3)
 
         #Kraft als Pfeil dazu zeichnen 
-        pfeil_skalierung = 0.5
+        pfeil_skalierung = 3.0
         for k_id in kraft_ids:
             k = struktur.knoten[k_id]
             x0, z0 = self._knoten_pos(struktur, k_id, u, mapping, skalierung)
-            ax.arrow(x0, z0, pfeil_skalierung*k.kraft_x, pfeil_skalierung*k.kraft_z, head_width=0.1, head_length=0.2, length_includes_head=False, color="red", zorder = 5)
+            dx = pfeil_skalierung * k.kraft_x
+            dz = pfeil_skalierung * k.kraft_z
+            ax.arrow(x0, z0, dx, dz, head_width=0.1, head_length=0.2, length_includes_head=True, color="red", zorder = 5)
 
 
         #Knoten ID-Texte 
