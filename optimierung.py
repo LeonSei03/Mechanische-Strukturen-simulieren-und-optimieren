@@ -357,8 +357,20 @@ class TopologieOptimierer:
     
     # Funktion welchen uns den aktuellen optimierungszustand speichert
     def zustand_exportieren(self):
+
+        randbedingungen = {}
+        for k_id, k in self.struktur.knoten.items():
+            randbedingungen[int(k_id)] = {
+                "lager_x_fix": bool(k.fix_x),
+                "lager_z_fix": bool(k.fix_z),
+                "kraft_x": float(k.kraft_x),
+                "kraft_z": float(k.kraft_z),
+                "knoten_aktiv": bool(k.knoten_aktiv)
+            }
+
         return {
             "struktur": self.struktur,
+            "randbedingungen": randbedingungen,
             "optimierung": {
                 "optimierung_initialisiert": self.optimierung_initialisiert,
                 "optimierung_beendet": self.optimierung_beendet,
@@ -379,6 +391,25 @@ class TopologieOptimierer:
     def zustand_importieren(self, daten):
         self.struktur = daten["struktur"]
         opt = daten["optimierung"]
+
+        rand = daten.get("randbedingungen", None)
+        if rand is not None:
+            for k_id, rb in rand.items():
+                k_id = int(k_id)
+
+                if k_id not in self.struktur.knoten:
+                    continue
+
+                k = self.struktur.knoten[k_id]
+
+                k.fix_x = bool(rb.get("lager_x_fix", False))
+                k.fix_z = bool(rb.get("lager_z_fix", False))
+
+                k.kraft_x = float(rb.get("kraft_x", 0.0))
+                k.kraft_z = float(rb.get("kraft_z", 0.0))
+                
+                if "knoten_aktiv" in rb:
+                    k.knoten_aktiv = bool(rb["knoten_aktiv"])
 
         self.optimierung_initialisiert = opt["optimierung_initialisiert"]
         self.optimierung_beendet = opt["optimierung_beendet"]
