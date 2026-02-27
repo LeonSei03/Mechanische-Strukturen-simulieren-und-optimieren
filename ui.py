@@ -518,6 +518,28 @@ elif navigation == "Optimierung":
             # sessionstates aktualisieren
             st.session_state.optimierer = opt
             st.session_state.struktur = opt.struktur
+
+            st.session_state.entwurf_kraefte = {}
+            st.session_state.entwurf_lager = {}
+
+            for k_id, k in st.session_state.struktur.knoten.items():
+                if not k.knoten_aktiv:
+                    continue
+                
+                # Kräfte nur, wenn nicht 0 (sonst wird die Liste riesig)
+                if float(k.kraft_x) != 0.0 or float(k.kraft_z) != 0.0:
+                    st.session_state.entwurf_kraefte[int(k_id)] = (float(k.kraft_x), float(k.kraft_z))
+
+                # Lager in euren UI-String übersetzen
+                if k.fix_x and k.fix_z:
+                    st.session_state.entwurf_lager[int(k_id)] = "Festlager"
+                elif (not k.fix_x) and k.fix_z:
+                    st.session_state.entwurf_lager[int(k_id)] = "Loslager (x frei, z fix)"
+                elif k.fix_x and (not k.fix_z):
+                    st.session_state.entwurf_lager[int(k_id)] = "Loslager (x fix, z frei)"
+                # else: kein Lager -> nichts eintragen
+
+
             st.session_state.historie = opt.verlauf
 
             st.session_state.optimierung_laeuft = False
