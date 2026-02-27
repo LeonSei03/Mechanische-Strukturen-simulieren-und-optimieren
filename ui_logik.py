@@ -7,19 +7,40 @@ import os
 import pickle
 from datetime import datetime
 
-# Funktion um aktuelles System zu lösen
 def loese_aktuelle_struktur(struktur:Struktur):
+    """
+    Baut das aktuelle GLS der aktuellen Struktur auf und löst es.
+
+    Argument:
+        struktur (Struktur): aktuelle Struktur mit Knoten/Federn/Lagern/Kräften
+
+    Returns:
+        tuple[np.ndarray | None, dict]:
+            - u -> Verschiebungsvektor oder None
+            - mapping -> DOF-Mapping {knoten_id: (ix, iz)}
+    """
     K, F, fixiert, mapping = struktur.system_aufbauen()
     u = solve(K.copy(), F, fixiert)
     return u, mapping
     
-# Struktur aufbauen, wie in der main.py die test_optimierung
 def struktur_bauen(nx, nz, dx, dz, lager_modus):
+    """
+    Erzeugt ein Default-Gitter, inklusive Federn, Lagern, und eine Default Last.
+
+    Argumente:
+        nx (int): Anzahl Knoten in x-Richtung
+        nz (int): Anzahl Knoten in z-Richtung
+        dx (float): Knotenabstand in x
+        dz (float): Knotenabstand in z
+        lager_modus (str): "Knoten einzeln" oder "Knotenspalte"
+
+    Returns:
+        Struktur: fertig initialisierte Struktur
+    """
     s = Struktur()
     
     s.gitter_erzeugen_knoten(nx, nz, dx, dz)
     
-    #dx/dz als Federsteifigkeiten, später evtl getrennt in der Sidebar anwenden? k_h, k_v; k_d ?
     # wir verwenden dx und dz auch als abstand, dass ist verwirrend hab hier federsteifigkeit konkret übergeben
     k_h = 1.0 #horizontal
     k_v = 1.0 #vertikal
@@ -32,10 +53,6 @@ def struktur_bauen(nx, nz, dx, dz, lager_modus):
         for j in range(nz):
             k_id = s.knoten_id(0, j)
             s.lager_setzen(k_id, True, True)
-        # ganze rechte Spalte ein Loslager
-        #for j in range(nz):
-            #k_id = s.knoten_id(nx-1, j)
-            #s.lager_setzen(k_id, False, True)
 
     # ansonsten einfach nur Knoten fest genau am Lager
     else:
@@ -69,8 +86,16 @@ def struktur_bauen(nx, nz, dx, dz, lager_modus):
     return s
 
 def einzellast_setzen(struktur:Struktur, neuer_last_knoten_id, fx, fz):
-    #einzelne Kraft auf einen Knoten setzten
-    #optional die vorherige last löschen damit sich die kräfte nicht überlagern 
+    """
+    Setzt eine einzalne Kraft auf einen Knoten und entfernt optional die vorherige Last.
+    Der Nutzer soll nicht mehrere Lasten aus Versehen aufsummieren, daher wird die vorherige Last (aus st.session_state) zuerst gelöscht
+
+    Argumente:
+        struktur (Struktur): aktuelle Struktur
+        neuer_last_knoten_id (int): Knoten-ID für neue Last
+        fx (float): Kraft in x
+        fz (float): Kraft in z
+    """
 
     alter_last_knoten_id = st.session_state.get("last_knoten_id")
 
@@ -83,6 +108,15 @@ def einzellast_setzen(struktur:Struktur, neuer_last_knoten_id, fx, fz):
     st.session_state.last_knoten_id = neuer_last_knoten_id
 
 def lager_typ_anwenden(struktur:Struktur, knoten_id, lager_typ):
+    """
+    Übersetzt den Lager-String aus der UI in echte Lagerbedingungen (fix_x/fix_z)
+
+    Argumente:
+        struktur (Struktur): aktuelle Struktur
+        knoten_id (int): Knoten-ID
+        lager_typ (str): UI-Label (z.B. "Festlager", "Loslager (x frei, z fix)" ...)
+    """
+
     #Lagerbedinungen setzen an einem Knoten 
     if lager_typ == "Kein Lager": 
         struktur.lager_loeschen(knoten_id)
@@ -93,9 +127,13 @@ def lager_typ_anwenden(struktur:Struktur, knoten_id, lager_typ):
     elif lager_typ == "Loslager (x fix, z frei)":
         struktur.lager_setzen(knoten_id, True, False)
 
-#Übernimmt alle Entwurf Kräfte und Entwurf Lager aus dem Session-State in die Struktur
 def entwurf_auf_struktur_anwenden(struktur:Struktur):
-
+    """
+    Übernimmt alle Entwurf-Lager und Entwurf-Kräft aus sessionstates in die Struktur.
+    -> In der UI werden Änderungen zunächst als "Entwurf" gespeichert,
+        damit man mehrere Sachen einstellen kann, ohne sofort die Struktur zu verändern.
+    -> Erst beim Klick auf "Entwürfe anwenden" werden die Werte wirklich gesetzt.
+    """
     #Kräfte anwenden
     for knoten_id, (fx, fz) in st.session_state.entwurf_kraefte.items():
         struktur.kraft_setzen(knoten_id, fx=float(fx), fz=float(fz))
@@ -108,8 +146,18 @@ def entwurf_auf_struktur_anwenden(struktur:Struktur):
     st.session_state.u = None 
     st.session_state.mapping = None   
 
-#prüft ob das system prinzipiell gelagert ist 
 def pruefe_lagerung_genug(struktur:Struktur):
+    """
+    Prüft eine minimale Lagerbedingung fpr eine eindeutige Lösung.
+    - Mindestens ein Lagerknoten existiert
+    - Mindestens ein Freiheitsgrad in x ist fixiert
+    - Mindestens ein Freiheitsgrad in z ist fixiert
+
+    Aber das ist keine Stabilitätsanalyse, aber ein guter Vorab-Check für die UI.
+
+    Returns:
+        bool: True wenn "prinzipiell gelagert", sonst False
+    """
     lager_ids = struktur.lager_knoten_id()
     if not lager_ids:
         return False 
@@ -120,6 +168,11 @@ def pruefe_lagerung_genug(struktur:Struktur):
     return fix_x and fix_z
 
 def reset_ui_state_bei_neuer_struktur():
+    """
+    Setzt UI-Zustände zurück, wenn eine neue Struktur erzeugt wird.
+    Dadurch wird verhindert, dass alte Entwürfe (Kräfte/Lager) auf die neue Struktur durchschlagen 
+    oder ein altes Solver-Ergebnis (u/mapping) fälschlicherweise angezeigt wird
+    """
     st.session_state.kraft_knoten_id = None
     st.session_state.last_knoten_id = None
     st.session_state.entwurf_kraefte = {}
@@ -129,6 +182,18 @@ def reset_ui_state_bei_neuer_struktur():
 
 
 def checkpoint_speichern(zustand: dict, ordner: str = "checkpoints", dateiname: str | None = None):
+    """
+    Speichert einen beliebigen Python-Zustand als Pickle-Datei
+
+    Arguemnte:
+        zustand (dict): Optimierer-Zustand (Struktur + Parameter + Verlauf)
+        ordner (str): Zielordner
+        dateiname (str | None): Dateiname wie unten 
+
+    Returns:
+        str: Dateipfad zu der gespeicherten Pickle-Datei
+    """
+    
     os.makedirs(ordner, exist_ok=True)
 
     if dateiname is None:
@@ -143,5 +208,14 @@ def checkpoint_speichern(zustand: dict, ordner: str = "checkpoints", dateiname: 
     return pfad
 
 def checkpoint_laden(pfad: str) -> dict:
+    """
+    Lädt einen gespeicherten Checkpoint -> Pickle-Datei
+
+    Argumente:
+        pfad (str): Pfad zur Pickle-Datei
+
+    Returns:
+        dict: wiederhergestellter Zustand
+    """
     with open(pfad, "rb") as f:
         return pickle.load(f)

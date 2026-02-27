@@ -3,6 +3,7 @@ from PIL import Image
 
 def fig_zu_pil(fig, dpi=120):
     """Funktion um eine Matplotlib Figur zu einem PIL Image umzuwandeln"""
+    
     buf = BytesIO()
     fig.savefig(buf,format="png", dpi=dpi, bbox_inches="tight")
     buf.seek(0)

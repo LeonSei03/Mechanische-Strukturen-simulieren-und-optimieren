@@ -15,17 +15,35 @@ class Struktur:
         self.anzahl_x = None
         self.anzahl_z = None
 
-    # Funktion um Knotenobjekte zum Dict hinzuzufügen
     def knoten_hinzufuegen(self, x: float, z: float) -> int:
+        """
+        Fügt der Struktur einen neuen Knoten hinzu.
+
+        Argumente:
+            x (float): x-Koordinate
+            z (float): z-Koordinate
+
+        Returns:
+            int: Knoten-ID
+        """
         k_id = self.knoten_id_zaehler
 
         self.knoten[k_id] = Knoten(id=k_id, x=x, z=z) # im dictionary jeden neuen Knoten abspeichern
         self.knoten_id_zaehler += 1
         return k_id
 
-
-    # Funktion um das Gitter aus Knoten zu erzeugen
     def gitter_erzeugen_knoten(self, anzahl_x: int, anzahl_z: int, dx: float, dz: float):
+        """
+        Erzeugt ein regelmäßiges Knotengitter.
+        Die Knoten werden zeilenweise (j, i) angelegt und erhalten IDs nach:
+            k_id = j * anzahl_x + i
+        
+        Argumente:
+            anzahl_x (int): Anzahl Knoten in x-Richtung
+            anzahl_z (int): Anzahl Knoten in z-Richtung
+            dx (float): Abstand zwischen Knoten in x
+            dz (float): Abstand zwischen Knoten in z
+        """
         self.anzahl_x = anzahl_x
         self.anzahl_z = anzahl_z
 
@@ -37,23 +55,47 @@ class Struktur:
 
                 self.knoten_hinzufuegen(x, z)
 
-    
-    # Funktion um Federobjekte ins Dict zu schreiben
     def feder_hinzufuegen(self, knoten_i: int, knoten_j: int, steifigkeit: float) -> int:
+        """
+        Fügt eine Feder zwischen zwei Knoten hinzu
+
+        Argumente:
+            knoten_i (int): ID des ersten Knotens
+            knoten_j (int): ID des zweiten Knotens
+            steifigkeit (float): axiale Federsteifigkeit (k)
+
+        Returns:
+            int: Feder-ID
+        """
         f_id = self.feder_id_zaehler
 
         self.federn[f_id] = Feder(id=f_id, knoten_i=knoten_i, knoten_j=knoten_j, steifigkeit=steifigkeit)
         self.feder_id_zaehler += 1
         return f_id
 
-
-    # Funktion um aus einer Gitterposition die passende Knoten id zurückzugeben
     def knoten_id(self, i: int, j: int) -> int:
+        """
+        Berechnet die Knoten-ID im Gitter
+
+        Argumente:
+            i (int): Index in x-Richtung
+            j (int): Index in z-Richtung
+
+        Returns:
+            int: Knoten-ID
+        """
         return j * self.anzahl_x + i
 
 
-    # Funktion um das Gitter aus den Federn zu erzeugen, Feder kommt immer zwischen zwei benachbarte Knoten
     def gitter_erzeugen_federn(self, k_h: float, k_v: float, k_d: float): # WICHTIG: ich weiß nicht ob die steifigkeiten der federn unterschiedlich sind je nachdem ob sie hori, verti, dia sind. also mal drei verschiedene Steifigkeiten die übergeben werden müssen
+        """
+        Funktion um das Gitter aus den Federn zu erzeugen, Feder kommt immer zwischen zwei benachbarte Knoten
+
+        Argumente:
+            k_h (float): Steifigkeit horizontaler Federn
+            k_v (float): Steifigkeit vertikaler Federn
+            k_d (float): Steifigkeit diagonaler Federn
+        """
         # über alle knoten drüber iterieren und eine feder dazwischen abspeichern, x richutng, z richtung und diagonal
         for j in range(self.anzahl_z):
             for i in range(self.anzahl_x):
@@ -81,9 +123,14 @@ class Struktur:
                     self.feder_hinzufuegen(e, f, k_d)
 
 
-    # Funktion zum entfernen von Knoten, für die Optimierung
     def knoten_entfernen(self, k_id: int):
+        """
+        Deaktiviert einen Knoten sowie alle zugehörigen Federn.
+        Es werden geschützte Knoten berücksichtigt.
 
+        Argumente:
+            k_id (int): Knoten-ID
+        """
         if k_id not in self.knoten: #exisitert der knoten? 
             return
         if self.knoten_geschuetzt(k_id): #schutz am anfang prüfen 
@@ -94,30 +141,20 @@ class Struktur:
         for feder in self.federn.values(): #federn am knoten deaktivieren 
             if feder.feder_aktiv and (feder.knoten_i == k_id or feder.knoten_j == k_id):
                 feder.feder_aktiv = False
-
-#hab hier überarbeitet, zuerst geprüft ob knoten geschützt nicht später erst.... 
-
-#        if k_id in self.knoten:
-#            self.knoten[k_id].knoten_aktiv = False # knoten_aktiv Variable am Key k_id auf False setzen
-
-        # alle Federn die am Knoten dran sind deaktivieren
-#        for feder in self.federn.values():
-#            if not feder.feder_aktiv:
-#                continue
-#            if self.knoten_geschuetzt(k_id):
-#                return
-#           if feder.knoten_i == k_id or feder.knoten_j == k_id:
-#                feder.feder_aktiv = False
-    
+  
 
     # Funktion zum deaktivieren von Federn, für die Optimierung
     def feder_entfernen(self, f_id: int):
         if f_id in self.federn:
             self.federn[f_id].feder_aktiv = False
 
-
-    # Funktion um Knoten zu schützen, dass sie nicht entfernt werden können
     def knoten_geschuetzt(self, k_id: int) -> bool:
+        """
+        Funktion um Knoten zu schützen, dass sie nicht entfernt werden können
+
+        Returns:
+            bool: True wenn geschützt, ansonsten False
+        """
         k = self.knoten[k_id]
         return (k.fix_x or k.fix_z or k.kraft_x != 0 or k.kraft_z != 0)
     
@@ -129,8 +166,17 @@ class Struktur:
     def aktive_federn_ids(self) -> list[int]:
         return[f_id for f_id, f in self.federn.items() if f.feder_aktiv]
     
-    #map der freiheitsgrade an richtiger position definieren
     def dof_map(self):
+        """
+        Erstellt ein DOF Mapping für alle aktiven Knoten
+        Jeder aktive Knoten hat zwei Freiheitsgrade
+        -> u_x 
+        -> u_z
+
+        Returns:
+            dict[int, tuple[int,int]]:
+                {knoten_id: (index_x, index_z)}
+        """
 
         #nur aktive Knoten interessieren uns für gleichungssysteme
         aktive_knoten = self.aktive_knoten_ids()
@@ -151,9 +197,16 @@ class Struktur:
 
         return mapping
     
-    #Funktion zur bestimmung der definierten Freiheitsgrade (Lagerbedingungen), gibt den Knotenindex zurück
     def fixierte_freiheitsgrade(self, dof_mapping):
+        """
+        Funktion zur bestimmung der definierten Freiheitsgrade (Lagerbedingungen).
+    
+        Argumente:
+            dof_mapping (dict): Mapping aus 'dof_map'
 
+        Returns:
+            list[int]: Liste der globalen DOF-Indizes, die auf 0 gesetzt werden
+        """
         #indizes sammeln bei denen die verschiebung auf 0 gesetzt wird (Lager)
         fixierte_indizes = []
 
@@ -169,9 +222,16 @@ class Struktur:
         
         return fixierte_indizes
     
-    #Funktion zur erzeugung des globalen kraftvektors K * u = F
     def kraftvektor_aufbauen(self, dof_mapping):
+        """
+        Funktion zur erzeugung des globalen kraftvektors K * u = F
 
+        Argumente:
+            dof_mapping (dict): Mapping aus 'dof_map'
+
+        Returns:
+            np.ndarray: globaler Kraftvektor F
+        """
         anzahl_freiheitsgrade = 2 * len(dof_mapping) #2 weil jeder Knoten zwei dof besitzt
 
         #Kraftvektor mit 0 initialisieren 
@@ -187,9 +247,14 @@ class Struktur:
 
         return F
     
-    #berechnung einheitsrichtungsvektor der Federn
+    # berechnung einheitsrichtungsvektor der Federn
     def feder_einheitsvektor(self, feder_id):
+        """
+        Berechnung des Einheitsrichtungsvektor der Federn.
 
+        Argumente:
+            feder_id (int): Feder-ID
+        """
         feder = self.federn[feder_id]
 
         knoten_i = self.knoten[feder.knoten_i]
@@ -210,9 +275,16 @@ class Struktur:
 
         return e
 
-    #Lokale 4x4 Steifigkeitsmatrix einer einzelnen Feder
     def lokale_feder_matrix(self, feder_id):
-        
+        """
+        Berechnet die lokale 4x4 Steifigkeitsmatrix einer Feder im globalen Koordinatensystem.
+
+        Argumente:
+            feder_id (int): Feder-ID
+
+        Returns:
+            np.ndarray: 4x4 lokale Steifigkeitsmatrix
+        """
 
         feder = self.federn[feder_id]
 
@@ -232,6 +304,17 @@ class Struktur:
         return K_lokal
 
     def steifigkeitsmatrix_aufbauen(self, dof_mapping):
+        """
+        Baut die globale Steifigkeitsmatrix K aus allen aktiven Federn auf.
+        Jede Feder liefert einen 4x4 Beitrag, der in die globale Matrix
+        an die passenden DOF-Indizes addiert wird.
+
+        Argumente:
+            dof_mapping (dict): Mapping aus 'dof_map()'
+
+        Returns:
+            np.ndarray: globale Steifigkeitsmatrix K
+        """
 
         anzahl_freiheitsgrade = 2 * len(dof_mapping)
 
@@ -264,7 +347,7 @@ class Struktur:
 
         return K_global
     
-#nun werden hier lager und kräfte definiert und gesetzt um systeme lösen zu können(später gedanken zum auslagern machen, hab hier mal in struktur weiter gearbeitet)
+    #nun werden hier lager und kräfte definiert und gesetzt um systeme lösen zu können
     #Funktion setzt Lagerbedinungen an einem Knoten, in welche richtung verschiebungen nicht zugelassen werden 
     def lager_setzen(self, k_id: int, fix_x = False, fix_z = False) -> None: 
 
@@ -287,7 +370,6 @@ class Struktur:
         k.kraft_x = fx
         k.kraft_z = fz
         
-
     #Funktionen um Lager und Kräfte wieder rückzusetzen/löschen 
     def lager_loeschen(self, k_id: int) -> None: 
         self.lager_setzen(k_id, fix_x=False, fix_z=False)
@@ -295,8 +377,17 @@ class Struktur:
     def kraft_loeschen(self, k_id: int) -> None: 
         self.kraft_setzen(k_id, fx=0.0, fz=0.0)
 
-    #System wird hier aufgebaut also K * u = F, später dann mit solver gelöst
     def system_aufbauen(self):
+        """
+        Baut das komplette lineare Gleichungssystem der Struktur K*u=F auf.
+
+        Returns:
+            tuple:
+                K (np.ndarray): globale Steifigkeitsmatrix
+                F (np.ndarray): globaler Kraftvektor
+                fixiert (list[int]): Indizes fixierter Freiheitsgrade (Lager)
+                mapping (dict): DOF-Mapping (knoten_id -> (ix, iz))
+        """
 
         mapping = self.dof_map()
         K = self.steifigkeitsmatrix_aufbauen(mapping)
@@ -424,8 +515,13 @@ class Struktur:
 
         return kraefte
 
-    # Funktion die eine Liste baut aus aktiven verbundenen Knoten und Federn
     def nachbarschaft(self):
+        """
+        Erzeugt eine Liste aus allen aktiven verbunden Knoten und Federn
+
+        Returns:
+            dict[int, list[int]]: {knoten_id: [nachbar_ids]}
+        """
         aktive_knoten = set(self.aktive_knoten_ids())
 
         # für jeden aktiven Knoten eine leere Nachbarschaftsliste anlegen
@@ -446,9 +542,13 @@ class Struktur:
         
         return adj
     
-    # Funktion welche uns sagt ob mindestens ein aktiver Lastknoten über aktive Federn mit mindestens einem aktiven Lagerknotne verbunden ist
     def ist_verbunden_last_zu_lager(self):
-
+        """
+        Sagt ob mindestens ein aktiver Lastknoten über aktive Federn mit mindestens einem aktiven Lagerknotne verbunden ist
+    
+        Returns:
+           bool: True wenn Connectivity erfüllt ist, ansonsten False
+        """
         # aktuelle Last und lagerknoten bestimmen
         last_ids = self.last_knoten_id() or []
         lager_ids = self.lager_knoten_id() or []
@@ -487,7 +587,14 @@ class Struktur:
     
     # gibt eine Liste an Knoten ids zurück, welche auf dem Lastpfad zwischen Lastknoten und Lagerknoten liegen
     def finde_lastpfad_knoten(self):
+        """
+        Findet Pfade von Lastknoten zu Lagerknoten im aktiven Graphen.
+        Hier wird eine ungewichtete Breitensuche verwendet.
+        In der Dijkstra Strategie wird stattdessen ein gewichteter Pfad verwendet.
 
+        Returns:
+            list[list[int]] | None: Liste von Pfaden (je Lastknoten), oder None falls kein Pfad existiert.
+        """
         # aktuelle Last- und Lagerknoten
         last_ids = self.last_knoten_id()
         lager_ids = set(self.lager_knoten_id())
@@ -541,8 +648,14 @@ class Struktur:
 
         return xs, zs
     
-    # Funktion welche aktive Knotenkoordinaten + Verschiebungen zurückgibt
     def koordinaten_knoten_mit_verschiebung(self, u, mapping, skalierung):
+        """
+        Funktion welche aktive Knotenkoordinaten plus die Verschiebungen zurückgibt        
+
+        Returns:
+            xs[list] -> Knotenposition in x plus dessen Verschiebung
+            zs[list] -> Knotenposition in z plus dessen Verschiebung
+        """ 
         xs = []
         zs = []
 

@@ -4,6 +4,19 @@ from struktur import Struktur
 from graph_strategien import dijkstra_lastpfad, knoten_in_ring_nachbarschaft
 
 class TopologieOptimierer:
+    """ 
+    Grundidee der Optimierung in der Klasse Topologieoptimierung
+
+    Wir lösen in jeder Iteration das System und geben jedem Knoten einen Score. Knoten mit kleinem 
+    Score sind weniger relevan und werden zuerst entfernt. Das passiert adaptiv, also zuerst werden viele Knoten entfernt, 
+    wenn eine Bedingung verletzt wird, passiert ein Rollback und es werden versucht weniger Knoten zu entfernen. Das passiert bis der 
+    gewünschte Materialanteil erreiht wird, die Iterationen ausgehen oder die Bedingungen unten nciht mehr erfüllt werden können. 
+
+    Sicherheit gibt es durch:
+    - Connectivity Check, wo geschaut wird ob die Lastknoten mit den Lagerknoten verbunden sind
+    - Rollback strategie, wenn u_max überschritten wird oder Matrix singulär wird, pasiert ein Rollback und es wird der vorherige Zustand wieder genommen
+    - Inseln und isolierte Knoten werden entfernt
+    """
     def __init__(self, struktur):
         self.struktur: Struktur = struktur
 
@@ -34,9 +47,16 @@ class TopologieOptimierer:
         self.u_alpha = 0.3
         self.u_max_running = None
 
-    # aktuelle Struktur lösen (ohne Optimierung) für die max verschiebung der Ausgangsstruktur
-    # damit wir nachher referenz haben zur Verschiebungs nebenbedingung
     def berechne_startverschiebung(self):
+        """
+        Damit lösen wir einmal die Anfansstruktur um die maximale verschiebung zu bestimmen.
+        Diese Verschiebung dient dann als Referenz, um später die Verschiebungsgrenze für die 
+        Optimierung zu bestimmen.
+
+        Return:
+            max_u -> max. Verschiebung der Startstruktur
+        """
+
         # GLS aufbauen und lösen
         K, F, fixiert, mapping = self.struktur.system_aufbauen()
         u = solve(K.copy(), F, fixiert)
@@ -48,8 +68,19 @@ class TopologieOptimierer:
         max_u = float(np.max(np.abs(u)))
         return max_u
 
-    # Funktion zum berechnen der Energie jeder aktiver Feder
     def feder_energien_berechnen(self):
+        """
+        Baut das globale GLS K*u=F auf, löst dieses und berechnet pro aktiver
+        die gespeicherte Federenergie
+
+        Returns:
+            tuple:
+                energien (dict[int, float]): {feder_id: energie}
+                u (np.ndarry): Verschiebungsvektor
+                mapping: (dict[int, tuple[int, int]]): Zuordnung Knoten -> DOF Indizes
+                (K,F,fixiert)
+        """
+
         #GLS aufbauen und lösen
         K, F, fixiert, mapping = self.struktur.system_aufbauen()
         u = solve(K.copy(), F, fixiert)
@@ -81,8 +112,23 @@ class TopologieOptimierer:
         
         return energien, u, mapping, (K, F, fixiert)
 
-    # Energiebasierte Scores berechnen für alle aktiven Knoten indem jeder Endknoten die hälfte der Energie bekommt
     def knoten_scores_berechnen(self):
+        """
+        Auf basis der Federenergien werden die Scores der Knoten berechnet.
+
+        Idee:
+        Die Federenergie wird halb halb auf beide Endknoten verteilt. Dh Knoten mit 
+        kleinem Score hängen an einer Feder mit wenig Energie und nimmt somit nicht viel Last auf und können entfernt werdne.
+
+        Zudem wird ein smoothing über die Nachbarschaft durchgeführt, damit wir weniger Ausreißer haben
+         - Score wird gemittelt mit den Nachbar Scores
+
+        Returns:
+            scores(dict[int,float]): gefilterte Scores pro Knoten
+            energien(dict[int,float]): Energien pro Feder
+            u(np.ndarray): Verschiebung
+            mapping(dict): DOF-Mapping
+        """
         out = self.feder_energien_berechnen()
         
         if out[0] is None:
@@ -116,7 +162,14 @@ class TopologieOptimierer:
 
     # Funktion um Knoten mit geringster Energie auszuwählen
     def auswahl_knoten_zum_entfernen(self, scores, anzahl, energien=None, u=None, mapping=None, verboten=None):
-        
+        """
+        Wählt die Knoten mit geringster Energie aus, um entfernt zu werden. 
+        Wenn bei Dijkstra zu wenig Knoten übrig bleiben, wird der Ringschutz kurz entfernt um noch Kandidaten zu finden.
+
+        Returns:
+            list[int] -> Liste der Knoten IDs zum entfernen
+        """
+
         kritisch = self._kritische_knoten_ids_nach_strategie(energien, u=u, mapping=mapping)
         
         if verboten is None:
@@ -152,12 +205,25 @@ class TopologieOptimierer:
         kandidaten.sort(key=lambda x: x[1])
         return[k_id for k_id, _ in kandidaten[:anzahl]]
     
-    # eine Funktion die einen Optimierungsschritt macht, Knotenscores berechnen, Knoten mit niedrigstem score raus macht
-    # u_max eingebaut, weil K manchmal doch noch invertierbar ist, obwohl zu viel material abgetragen wurde, deswegen machen wir nun auch rollback wenn die gesamtverscchiebung zu groß ist
-    # damit sagen wir quasi das die Steifigkeit erhalten bleiben muss
-    # versuchen 5Knoten zu entfernen, wenn danach K singulär ist oder u_max zu groß ist passiert ein Rollback und sind haben wieder den stand von vor den 5 gelöschten knoten
-    # dann probieren wir 4 knoten zu löschen usw -> adaptiv
     def optimierungs_schritt_adaptiv_rollback(self, max_entfernen, u_max=None):
+        """
+        Führt einen Optimierungsschritt mit adaptivem Rollback aus.
+        Grober Ablauf:
+        1) Scores berechnen
+        2) Versuche n Knoten zu entfernen (n = max_entfernen, ..., 1)
+        3) Nach Entfernen prüfen:
+           - Connectivity (Last mit Lager verbunden?)
+           - Solve-Test (System lösbar?)
+           - u_max (max. Verschiebung <= Grenze?)
+        4) Wenn eine Bedingung verletzt ist:
+           - Rollback auf Snapshot
+           - n reduzieren bzw. Kandidaten in dieser Iteration verbieten
+        5) Wenn erfolgreich:
+           - Inseln entfernen
+           - isolierte Knoten entfernen
+           - Energie für Verlauf berechnen
+        """
+        
         print("max_entfernen =", max_entfernen)
         
         # knotenscores berechnen basiert auf energie der federn
@@ -233,16 +299,22 @@ class TopologieOptimierer:
             return True, gesamt_entfernt, entfernte_ids, max_u_val, gesamtenergie
 
         return False, 0, [], None, None
-    
-    # aktuellen Zustand speichern
+
     def zustand_sichern(self):
+        """
+        Sichert den aktuellen Zustand der Struktur, also alle aktiven Knoten und Federn
+        """
         return{
             "aktive_knoten": set(self.struktur.aktive_knoten_ids()),
             "aktive_federn": set(self.struktur.aktive_federn_ids())}
 
-    # vorherigen Zustand wiedersherstellen
     def zustand_wiederherstellen(self, snapshot):
+        """
+        Stellt der Zustand der Struktur aus einem Snapshot wieder her.
 
+        Argumente:
+            snapshot(dict) -> Rückgabe von der Methode 'zustand_sichern()'
+        """
         aktive_knoten = snapshot["aktive_knoten"]
         aktive_federn = snapshot["aktive_federn"]
 
@@ -254,8 +326,11 @@ class TopologieOptimierer:
         for f_id, feder in self.struktur.federn.items():
             feder.feder_aktiv = (f_id in aktive_federn)
 
-    # Funktion welche uns einen neuen optimierungslauf initialisiert
     def optimierung_initialisieren(self, ziel_anteil=0.35, max_iter=50, max_entfernen_pro_iter=3, u_faktor=1.5, strategie="energie", dijkstra_neighbor_ring=0):
+        """ 
+        Initialisiert uns einen neuen Optimierungslauf.
+        """
+        
         # Anzahl aktiver Knoten am Anfang
         self.start_knotenanzahl = len(self.struktur.aktive_knoten_ids())
 
@@ -283,9 +358,19 @@ class TopologieOptimierer:
 
         self.u_max_running = self.u_max_grenze 
 
-    # genau eine optimierung ausführen und speichern
     def optimierung_schritt(self):
-        
+        """
+        Führt eine Optimierungsiteration aus.
+        -> Prüft die Abbruchbedingungen
+        -> Bestimmt wie viele Knoten max entfernt werden dürfen
+        -> Ruft Methode 'optimierungs_schritt_adaptiv_rollback()' auf
+        -> Speichert Daten für Plots
+
+        Returns:
+            bool: 
+                True -> Optimierungsschritt erfolgreich
+                False -> Optimierung beendet
+        """
         if not self.optimierung_initialisiert:
             raise RuntimeError("Optimierung nicht initalisiert!!")
         
@@ -320,24 +405,6 @@ class TopologieOptimierer:
             self.abbruch_grund = "Struktur nicht lösbar (vor Schritt)"
             return False
 
-       # _, u_now, _, _ = out
-        #max_u_now = float(np.max(np.abs(u_now)))
-
-        # Kandidat (dynamisch)
-        #u_candidate = self.u_faktor * max_u_now
-
-        # Hard cap relativ zum Start
-        #u_cap = self.u_cap_factor * self.u_start_max
-        #u_candidate = min(u_candidate, u_cap)
-
-        # Smoothing (damit es nicht sprunghaft hochgeht)
-        #if self.u_max_running is None:
-         #   self.u_max_running = u_candidate
-        #else:
-         #   self.u_max_running = self.u_alpha * self.u_max_running + (1.0 - self.u_alpha) * u_candidate
-
-        #u_max_effektiv = self.u_max_running
-
         u_max_limit = float(self.u_max_grenze)
 
         # Funktion "optimierungs_schritt_adaptiv_rollback" aufrufen und durchführen
@@ -365,9 +432,10 @@ class TopologieOptimierer:
         
         return True
     
-    # Funktion welchen uns den aktuellen optimierungszustand speichert
     def zustand_exportieren(self):
-
+        """
+        Exportiert den Optimierungszustand für die Checkpoints.
+        """
         randbedingungen = {}
         for k_id, k in self.struktur.knoten.items():
             randbedingungen[int(k_id)] = {
@@ -396,9 +464,14 @@ class TopologieOptimierer:
                 "verlauf": self.verlauf
             }
         }
-    
-    # Funktion welche uns einen gespeicherten zustand wieder gibt
+
     def zustand_importieren(self, daten):
+        """
+        Importiert den zuvor gespeicherten Zustand, also den Checkpoint
+
+        Argumente:
+            daten(dict): Rückgabe der MEthode 'zustand_exportieren()'
+        """
         self.struktur = daten["struktur"]
         opt = daten["optimierung"]
 
@@ -445,10 +518,11 @@ class TopologieOptimierer:
     
 
     def _hauptkomponente_ids(self):
-        """Bestimmt die Knoten-IDs die Last aufnehmen, also die mechanisch relevanten Knoten. 
-        Damit versuchen wir zu verhindern das random Knoten und Feder Stränge übrig bleiben nach dem Optimieren, welche gar keine Last aufnehmen.
         """
-
+        Bestimmt die Knoten-IDs die Last aufnehmen, also die mechanisch relevanten Knoten. 
+        Damit versuchen wir zu verhindern das random Knoten und Feder Stränge übrig bleiben nach dem Optimieren, welche gar keine Last aufnehmen.
+        Gehen mit BFS durch den aktiven Graphen um die Hauptkomponente zu finden. 
+        """
         # aktive Knoten holen
         adj = self.struktur.nachbarschaft()
 
@@ -477,7 +551,8 @@ class TopologieOptimierer:
         return visited
 
     def _inaktive_inseln_entfernen(self):
-        """Soll alle aktiven Knoten, welche nicht zur Hauptkomponente gehören (also keine Last aufnehmen) entfernen
+        """
+        Soll alle aktiven Knoten, welche nicht zur Hauptkomponente gehören (also keine Last aufnehmen) entfernen
         """
         haupt = self._hauptkomponente_ids()
 
@@ -502,7 +577,9 @@ class TopologieOptimierer:
 
 
     def _kritische_knoten_ids(self, include_neighbors=True):
-        """Baut uns eine Menge von kritischen Knoten die wir in der Kandidatenauswahl nicht entfernen wollen."""
+        """
+        Baut uns eine Menge von kritischen Knoten die wir in der Kandidatenauswahl nicht entfernen wollen.
+        """
 
         kritisch = set()
         pfade = self.struktur.finde_lastpfad_knoten()
@@ -530,7 +607,13 @@ class TopologieOptimierer:
         return kritisch
     
     def _kritische_knoten_ids_nach_strategie(self, energien=None, u=None, mapping=None):
-        """Gibt uns die Knoten zurück die nicht entfernt werden dürfen."""
+        """
+        Gibt uns die Knoten zurück die nicht entfernt werden dürfen.
+        Ist nur für die Dijkstra Strategie.
+
+        Returns:
+            set[int]: Menge der kritischen Knoten-IDs
+        """
 
         if self.strategie != "dijkstra" or energien is None or u is None or mapping is None:
             return set()
