@@ -72,24 +72,6 @@ colorbar_anzeigen = st.sidebar.checkbox("Farblegende (Colorbar) anzeigen", value
 if heatmap_modus in ("Federenergie", "Federkraft"):
     federn_anzeigen = True 
 
-
-# Einstellungen und Logging der Optimierung in der Sidebar
-st.sidebar.markdown("---")
-st.sidebar.subheader("Optimierungs-Protokoll")
-# Umschalter für ausführliches Logging
-st.session_state.protokoll_ausfuehrlich = st.sidebar.checkbox("Ausführliche Meldungen anzeigen", value=st.session_state.protokoll_ausfuehrlich)
-
-# Anzahl angezeigter Zeilen
-st.session_state.protokoll_zeilen_anzahl = st.sidebar.slider("Anzahl angezeigter Zeilen", 50, 800, st.session_state.protokoll_zeilen_anzahl, 50)
-
-# Button zum Zurücksetzen des Protokolls
-if st.sidebar.button("Protokoll leeren"):
-    st.session_state.optimierungs_protokoll.leeren()
-
-# Anzeige der letzten Zeilen
-st.sidebar.code(st.session_state.optimierungs_protokoll.letzte_zeilen(st.session_state.protokoll_zeilen_anzahl), language="text")
-
-
 #Struktur erzeugen (beim ersten Start, oder wenn User "Übernehmen" drückt)
 if uebernehmen or st.session_state.struktur is None:
     st.session_state.struktur = struktur_bauen(int(nx), int(nz), float(dx), float(dz), lager_modus)
@@ -426,7 +408,7 @@ elif navigation == "Optimierung":
 
     if start_neu:
         # neuer optimierer mit aktueller Struktur erzeugen
-        opt = TopologieOptimierer(st.session_state.struktur, protokoll=st.session_state.optimierungs_protokoll)
+        opt = TopologieOptimierer(st.session_state.struktur)
 
         # Parameter setzen und Verschiebungsgrenze berechnen
         opt.optimierung_initialisieren(

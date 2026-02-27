@@ -1,5 +1,4 @@
 import streamlit as st 
-from ui_logik import OptimierungsLogger
 
 def init_session_state(): 
     '''
@@ -75,16 +74,6 @@ def init_session_state():
 
     if "gif_recording" not in st.session_state:
         st.session_state.gif_recording = False
-
-    # sessionstates für das Optimierungs-logging
-    if "optimierungs_protokoll" not in st.session_state:
-        st.session_state.optimierungs_protokoll = OptimierungsLogger()
-
-    if "protokoll_zeilen_anzahl" not in st.session_state:
-        st.session_state.protokoll_zeilen_anzahl = 250
-
-    if "protokoll_ausfuehrlich" not in st.session_state:
-        st.session_state.protokoll_ausfuehrlich = False
 
 def flash(typ: str, text: str):
     #type sind success, info, warning und error 
