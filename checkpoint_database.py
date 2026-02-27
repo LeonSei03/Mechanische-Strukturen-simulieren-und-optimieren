@@ -5,10 +5,13 @@ import os
 
 _checkpoint_tabelle = DatabaseConnector().get_table("checkpoints")
 
+# Query Objekt für spätere Filteroperationen
 Q = Query()
 
-# checkpoint eintrag im tinydb anlegen
 def checkpoint_eintrag_anlegen(pfad: str, name: str = "Checkpoint", parameter: dict | None = None, info: dict | None = None):
+    """
+    Legt einen neuen Checkpoint in der TinyDB an
+    """
     doc = {
         "name": name,
         "pfad": pfad,
@@ -21,15 +24,24 @@ def checkpoint_eintrag_anlegen(pfad: str, name: str = "Checkpoint", parameter: d
     return doc_id
 
 def checkpoints_auflisten():
+    """
+    Gibt alle gespeicherten Checkpoints sortiert zurück
+    """
     alle = _checkpoint_tabelle.all()
     return sorted(alle, key=lambda d: d.get("zeitpunkt"), reverse=True)
 
 def checkpoint_holen(doc_id: int):
+    """
+    Lädt einen einzelnen Checkpoint aus der TinyDB
+    """
     return _checkpoint_tabelle.get(doc_id=doc_id)
 
-# db eintrag und zugehöhrige pickle datei löschen
 def checkpoint_loeschen(doc_id: int):
-
+    """
+    Löscht einen Checkpoint. 
+    -> Eintrag wird aus der TinyDB entfernt
+    -> Dann wird die zugehörige Pickle Datei gelöscht
+    """
     eintrag = _checkpoint_tabelle.get(doc_id=doc_id)
     if not eintrag:
         return False, "Checkpoint nicht gefunden"
