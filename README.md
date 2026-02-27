@@ -7,7 +7,7 @@ Die Struktur wird anhand der Anleitung als Feder-Knoten-Modell aufgebaut, besteh
 - Randbedingungen (Festlager / Loslager)
 - Extern eingeleiteten Kräften 
 
-Die Anwendung erlaubt Grundsätzlich: 
+Die Anwendung erlaubt grundsätzlich: 
 - Aufbauen und Visualisieren einer Gitterstruktur
 - Setzen von Kräften und Lagern 
 - Lösen des Gleichungssystems `K * u = F`
@@ -70,6 +70,7 @@ Der dritte MBB-Balken wird mit folgenden Optimierungsparametern erzeugt:
 
 ![MBB Dijkstra Lastpfad zwei](Bilder/MBB_Dijkstra_ZWEI_gesolved.png)
 
+Die erzeugten Balken sehen insgesamt sinnvoll aus, da sich das Material vof allem in den tragenden Bereichen befindet. Gleichzeitig werden auch Unterschiede zwischen den beiden Optimierungsstrategien gut sichtbar. 
 
 # Installation 
 Um mit dem Anwenung arbeiten zu können gibt es zwei verschiedene möglichkeiten. 
@@ -78,7 +79,8 @@ Die erste Möglichkeit ist hierbei das ganze Repo zu Klonen, man kann selbst am 
 - Repository Klonen: 
     - git clone https://github.com/LeonSei03/Mechanische-Strukturen-simulieren-und-optimieren.git
     - cd Mechanische-Strukturen-simulieren-und-optimieren
-- Virtuelle Umgebung erstellen:
+    - code . 
+- Virtuelle Umgebung im z.B im Terminal erstellen:
     - python -m venv .venv 
     - .venv/Scripts/activate (Windows)
 - Alle nötigen packages installieren: 
@@ -156,7 +158,7 @@ Hier wird eine Topologieoptimierung durchgeführt, mit dem Ziel die aktive Masse
 2. Optimierung laufen lassen 
 - `Weiter (1 Schritt)`: genau eine Iteration 
 - `Auto-Weiter` / `Stop`: iteriert automatisch pro UI-Rerun, Stop hält nach dem aktuellen Schritt an 
-- `Optimierung komplett durchlafuen (schnell)`: läuft ohne Stop-Möglichkeiten bis zum Ende 
+- `Optimierung komplett durchlaufen (schnell)`: läuft ohne Stop-Möglichkeiten bis zum Ende 
 
 ### Checkpoints (Speichern / Laden)
 - `Speichern`: speichert den Optimierten-Zustand als Checkpoint inklusive Paramter/Info 
@@ -166,7 +168,7 @@ Hier wird eine Topologieoptimierung durchgeführt, mit dem Ziel die aktive Masse
 - `GIF Recording aktiv`: zeichnet während der Optimierung Frames auf 
 - Danach: FPS wählen --> GIF erstellen --> Download 
 
-## Tab Varlaufplots 
+## Tab Verlaufplots 
 Zeift Verlauf über Iteration: 
 - Gesamtenergie
 - Materialanteil 
@@ -180,22 +182,100 @@ Vergleich von Referenz-Struktur vs. Aktuell:
 
 # Implementierte Erweiterungen
 ### Heatmap-Visualisierung für Verschiebung, Federenergie und Federkraft 
+Die Heatmap ist eine Erweiterung zur anschaulicheren Visualisierung und Auswertung der Struktur. In den drei verschiedenen Modi 
+- `Verschiebung` 
+- `Federenergie` 
+- `Federkraft`
+werden unterschiedliche Eigenschaften der berechneten Lösung farblich hervorgehoben. Somit erkennt man auf einen Blick, welche Bereiche besonders stark verformt oder belastet sind. 
+Folgende Abbildung zeigt die gelöste Default Struktur im Modus `Verschiebung`
 
-### Verschiedene Optimierungsstrategien (energie-basiert und lastpfad-gestützt)
+![Verschiebung Default Struktur](Bilder/Verschiebung_Default.png)
+
+### Verschiedene Optimierungsstrategien
+1. Energie-basiert 
+
+Die erste Strategie basiert auf der in den Federn gespeicherten elastischen Energie. 
+Dabei wird die Gesamtenergie jeder aktiven Feder berechnet und zur Hälfte auf die zugehörigen 
+Knoten verteilt. Knoten mit geringer energetischer Beteiligung gelten als strukturell weniger 
+relevant und werden bevorzugt entfernt. 
+Dieser Ansatz folgt dem physikalischen Prinzip, dass sich Lastpfade bevorzugt dort ausbilden, 
+wo hohe Spannungs- bzw. Energiezustände auftreten. Bereiche mit geringer Energie tragen 
+wenig zur globalen Steifigkeit bei und können daher als „Materialüberschuss“ interpretiert 
+werden und entfernt werden. 
+
+Vorteil: 
+- lokal sensitiv gegenüber Spannungszuständen 
+- erzeugt organische, lastangepasste Strukturen 
+
+Nachteil: 
+- kann bei sehr feinen Gittern lokal instabil wirken 
+- berücksichtigt keine globale Pfadstruktur explizit 
+
+2. Dijstra-basiert
+
+Als Erweiterung wurde eine weitere Methode der Topologieoptimierung implementiert, welche 
+zuvor in Teilen in der Lehrveranstaltung durchgenommen wurde. 
+Hier wird aus den aktuell berechneten Federkräften ein gewichteter Graph aufgebaut. Mittels 
+eines Dijkstra-Algorithmus wird ein bevorzugter Lastpfad vom Lastknoten zum Lagerknoten 
+bestimmt durch eine Kostenfunktion. 
+Die Kantengewichte werden so definiert, dass stark belastete Federn einen **günstigen** Weg 
+darstellen. Dadurch wird der strukturell wichtigste Kraftfluss explizit identifiziert. 
+Zusätzlich wurde eine Nachbarschaftserweiterung (Ring) implementiert, um nicht nur einen 
+einzelnen dünnen Pfad zu schützen, sondern einen strukturell robusteren Laststrang zu 
+erhalten. Der Hauptstrang würde sonst aus nur einer Reihe an Knoten bestehen und somit kann 
+man den Hauptstrang etwas „verbreitern“. Ein Vorteil dessen ist, dass globale 
+Strukturzusammenhänge berücksichtig werden. 
+Diese Erweiterung zeigt, dass Topologieoptimierung nicht nur lokal-energetisch, sondern auch 
+graphentheoretisch interpretiert werden kann und auch über die Kräfte anstatt der Energie der 
+Federn laufen kann. 
 
 ### Anzeige von Lastpfad 
+Zur besseren Analyse wurde der berechnete Lastpfad zusätzlich (optional )grafisch hervorgehoben. 
 
-### Verlaufplots
+Dadurch wird sichtbar: 
 
-### Strukturvergleich Nebeneineder 
+- wie sich der Kraftfluss während der Optimierung verändert 
+- ob der Haupttragpfad erhalten bleibt 
+- ob kritische Verbindungen gefährdet sind
+
+Die Visualisierung kann entweder in deformierter oder undeformierter Konfiguration erfolgen, 
+um eine klare physikalische Interpretation zu ermöglichen. 
+Die Darstellung ermöglicht es, das mechanische Verhalten der Struktur intuitiv 
+nachzuvollziehen und die Wirkung der Optimierungsstrategie unmittelbar zu verstehen.
+
+### Verlaufplots der Optimierung 
+
+Während der Optimierung werden relevante Größen pro Iteration gespeichert und anschließend 
+grafisch dargestellt. Dazu gehören unter anderem: 
+
+- Materialanteil 
+- maximale Verschiebung 
+- Gesamtenergie der Struktur 
+
+Diese Verlaufsdarstellungen ermöglichen: 
+
+- Analyse der Konvergenz 
+- Identifikation von Plateaus oder instabilen Zuständen 
+- Bewertung der Nebenbedingungen (z. B. Verschiebungsgrenze) 
+
+Insbesondere die Entwicklung der maximalen Verschiebung liefert wichtige Hinweise darauf, wie 
+sich die globale Steifigkeit mit zunehmender Materialreduktion verändert. 
+
+### Strukturvergleich Nebeneinader 
+Der Strukturvergleich nebeneinander im Tab `Vergleich`dient dazu, um zwei Strukturen direkt nebeneinender betrachten und vergleichen zu können. Man kann jede beliebige Struktur als Referenzstruktur speichern und jeweils die später aktuelle Struktur daneben vergleichen, wodurch zum Beispiel unterschiedliche Belastungen, Lagerungen und Optimierungen direkt auffallen. 
 
 ### GIF-Export der Optimierung  
+Als zusätzliche Erweiterung wurde die Erstellung eines GIF-Videos implementiert, der den 
+gesamten Optimierungsprozess als Animation speichert. 
+Jeder Iterationszustand wird visualisiert und anschließend zu einer fortlaufenden Animation 
+zusammengefügt. Dadurch lässt sich die strukturelle Entwicklung veranschaulichen und der 
+Optimierungsverlauf wird dargestellt. 
 
-### Checkpoint-System (TinyDB + Pickle)
+![Optimierungsverlauf](Bilder/Optimierungsverlauf_GIF.gif)
 
-# Achitektur und zentrale Abläufe 
+# Architektur und zentrale Abläufe 
 ### Architekturübersicht / Mermaid 
-Das folgende Diagramm zeigt die wesentlichen Komponeten der Anwendung und ihre Beziehungen.
+Das folgende Diagramm zeigt die wesentlichen Komponenten der Anwendung und ihre Beziehungen.
 
 ![Mermaid Diagramm](Bilder/Mermaid_Diagramm.png)
 
@@ -205,7 +285,7 @@ Das folgende Aktivitätsdiagramm zeigt den Ablauf beim Lösen einer Struktur dur
 ![Solve Diagramm](Bilder/PlantUML_Solve_Logik.png)
 
 ### Optimierungsschritt 
-Folgendes Aktivitätsdiagramm zeigt den Ablauf eines einzelnen Optimierungsschritts. Zunächst werden Abbruchbedingungen geprüft und anschließend wird ein adaptiver EIntfernungsschritt ausgeführt und das Ergebnis bewertet. 
+Folgendes Aktivitätsdiagramm zeigt den Ablauf eines einzelnen Optimierungsschritts. Zunächst werden Abbruchbedingungen geprüft und anschließend wird ein adaptiver Entfernungsschritt ausgeführt und das Ergebnis bewertet. 
 
 ![Optimierungs Diagramm](Bilder/PlantUML_Optimierungsschritt.png)
 
@@ -214,4 +294,5 @@ Folgendes Aktivitätsdiagramm beschreibt die eigentliche Kernlogik der Optimieru
 
 ![Optimierungs Diagramm](Bilder/PlantUML_Rollback.png)
 
-# Verwendung von Dokumentationen 
+# Verwendung von Dokumentationen und KI 
+Als Grundlage zum Programmieren dienten vor allem die LV-Unterlagen und Standarddokumentationen der verwendeten Tools und Bibliotheken. Ergänzend wurden KI-Werkzeuge nur vereinzelt und ausschließlich unterstützend genutzt, etwa bei Debugging oder zur allgemeinen Orientierung. Die Konzeption, Umsetzung und Programmierung des Projekts erfolgten dabei selbstständig.
