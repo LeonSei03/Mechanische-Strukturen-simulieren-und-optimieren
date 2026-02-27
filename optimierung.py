@@ -86,7 +86,7 @@ class TopologieOptimierer:
         out = self.feder_energien_berechnen()
         
         if out[0] is None:
-            return None, None, None
+            return None, None, None, None
         
         energien, u, mapping, _ = out
 
@@ -96,15 +96,23 @@ class TopologieOptimierer:
         # jeder Feder die halbe Energie geben
         for f_id, E in energien.items():
             feder = self.struktur.federn[f_id]
-            i = feder.knoten_i
-            j = feder.knoten_j
+            for k_id in [feder.knoten_i, feder.knoten_j]:
+                if k_id in scores:
+                    scores[k_id] += 0.5 * E
 
-            if i in scores:
-                scores[i] += 0.5 * E
-            if j in scores:
-                scores[j] += 0.5 * E
-        
-        return scores, energien, u, mapping
+        #filterung bzw smoothing der werte somit entfernt die optimierung eher sinnvolle Bereiche statt ausreisser
+        adj = self.struktur.nachbarschaft()
+        gefilterte_scores = {}
+        for k_id, score in scores.items():
+            nachbarn = adj.get(k_id, [])
+            if nachbarn:
+                #Mittelwert aus dem eingenwert und dem Nachbarn
+                gefilterte_scores[k_id] = (score + sum(scores[nb] for nb in nachbarn)) / (1 + len(nachbarn))
+            else: 
+                #falls kein Nachbar unverändert
+                gefilterte_scores[k_id] = score 
+
+        return gefilterte_scores, energien, u, mapping
 
     # Funktion um Knoten mit geringster Energie auszuwählen
     def auswahl_knoten_zum_entfernen(self, scores, anzahl, energien=None, u=None, mapping=None, verboten=None):
@@ -193,6 +201,8 @@ class TopologieOptimierer:
             if u_test is None:
                 print(f"[Rollback]  n={n} - Matrix Singulär")
                 self.zustand_wiederherstellen(snapshot)
+                #hier auch kandidaten aus Iteration nehmen damit man nicht stecken bleibt 
+                verboten.update(entfernte_ids)
                 continue
 
             # max Verschiebung darf nicht zu groß sein

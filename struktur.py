@@ -221,7 +221,7 @@ class Struktur:
         ex, ez = e[0], e[1]
 
         k = feder.steifigkeit
-        #WICHTIG!!!! muss man sich nochmal anschauen ob dass hier passt
+    
         K_lokal = k * np.array([
             [ex*ex, ex*ez, -ex*ex, -ex*ez],
             [ex*ez, ez*ez, -ex*ez, -ez*ez],
