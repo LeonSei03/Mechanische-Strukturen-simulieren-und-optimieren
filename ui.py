@@ -96,6 +96,7 @@ if uebernehmen or st.session_state.struktur is None:
     st.session_state.start_masse = len(st.session_state.struktur.aktive_knoten_ids())
     reset_ui_state_bei_neuer_struktur()
     st.session_state.historie = None
+    st.session_state.navigation = "Ansicht"
     st.rerun()
 
 struktur = st.session_state.struktur 
@@ -106,10 +107,15 @@ if struktur is None:
     st.stop()
 
 #Hauptlayout für Tabs bzw. Überischt 
-tab_ansicht, tab_optimierung, tab_plots, tab_vergleich = st.tabs(["Ansicht", "Optimierung", "Verlaufplots", "Vergleich"])
+#tab_ansicht, tab_optimierung, tab_plots, tab_vergleich = st.tabs(["Ansicht", "Optimierung", "Verlaufplots", "Vergleich"])
+
+#st.tabs durch st.radion ersetzt, vermeidet dass hin und herspringen bei reruns 
+navigation = st.radio("Navigation", ["Ansicht", "Optimierung", "Verlaufplots", "Vergleich"], horizontal=True, key="navigation")
+
 
 #Tab 1 Ansicht (Preview immer sichtbar)
-with tab_ansicht:
+#with tab_ansicht:
+if navigation == "Ansicht":
     st.subheader("Vorschau / Ergebnis")
 
     #Masse Infos (1 Knoten = 1kg)
@@ -361,7 +367,8 @@ with tab_ansicht:
                 st.rerun()
 
 # Tab 4 Optimierung
-with tab_optimierung:
+#with tab_optimierung:
+elif navigation == "Optimierung":
     st.subheader("Topologieoptimierung (Masse reduzieren)")
     st.write("Ziel: Anzahl aktiver Knoten reduzieren (1 Knoten = 1kg), bis die Zielmasse erreicht ist!!")
 
@@ -793,7 +800,8 @@ with tab_optimierung:
             st.write(f"Aktuell gespeicherte Frames: **{len(st.session_state.gif_frames)}**")
 
 
-with tab_plots:
+#with tab_plots:
+elif navigation == "Verlaufplots":
     st.subheader("Optimierungsverlauf")
     historie = st.session_state.get("historie")
 
@@ -858,7 +866,8 @@ with tab_plots:
 
     #plt.close("all")
 
-with tab_vergleich:
+#with tab_vergleich:
+elif navigation == "Vergleich":
     st.subheader("Vergleichen zweier Plots, wählen Sie den aktuellen Plot als Referenz")
 
     #Referenzen speichern 

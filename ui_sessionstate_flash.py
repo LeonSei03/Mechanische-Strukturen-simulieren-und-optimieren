@@ -39,6 +39,9 @@ def init_session_state():
     if "start_masse" not in st.session_state: 
         st.session_state.start_masse = None 
 
+    if "navigation" not in st.session_state:
+        st.session_state.navigation = "Ansicht"
+
     #states für neuen tab 
     if "struktur_ref" not in st.session_state:
         st.session_state.struktur_ref = None
