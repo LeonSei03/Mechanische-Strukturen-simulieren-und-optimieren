@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt 
 import matplotlib.cm as cm 
 import matplotlib.colors as mcolors 
@@ -20,7 +21,7 @@ class UIPlots:
         self.knoten_fontsize = knoten_fontsize
 
         #einmal die Colormap erzeugen statt wie davor in jeder plot_struktur funktion 
-        self.cmap = cm.get_cmap(self.cmap_name)
+        self.cmap = matplotlib.colormaps.get_cmap(self.cmap_name)
 
     #Interne Mehoden hier, alle mit _ gekennzeichnet 
     def _knoten_pos(self, struktur:Struktur, knoten_id: int, u=None, mapping=None, skalierung: float = 1.0):
